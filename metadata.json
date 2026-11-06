@@ -1,0 +1,10 @@
+{
+  "name": "AharLocal - Local Food Delivery",
+  "description": "Hyperlocal food delivery platform connecting local restaurants, customers, and delivery partners with live Google Maps tracking and Bengali/English support.",
+  "requestFramePermissions": [
+    "geolocation"
+  ],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
