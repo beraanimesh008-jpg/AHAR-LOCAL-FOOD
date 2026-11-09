@@ -9,12 +9,12 @@ error_reporting(E_ALL);
 ini_set('display_errors', '0');
 
 set_exception_handler(function(Throwable $e) {
+    error_log("AharLocal Uncaught Exception: " . $e->getMessage() . " in " . $e->getFile() . ":" . $e->getLine());
     http_response_code(500);
     header('Content-Type: application/json; charset=UTF-8');
     echo json_encode([
         'success' => false,
-        'message' => $e->getMessage() ?: 'An internal server error occurred',
-        'code'    => $e->getCode()
+        'message' => 'An internal server error occurred'
     ], JSON_UNESCAPED_UNICODE);
     exit;
 });
@@ -46,7 +46,7 @@ $uri = '/' . ltrim($uri, '/');
 // Route Dispatching Table
 // ------------------------------------------------------------------------------
 
-// 1. Health check
+// 1. Health check & Diagnostics
 if ($uri === '/health' && $method === 'GET') {
     jsonResponse([
         'status'  => 'ok',
@@ -55,6 +55,11 @@ if ($uri === '/health' && $method === 'GET') {
         'db'      => 'u691798054_aharlocal_db',
         'time'    => date('c')
     ]);
+}
+
+if ($uri === '/setup-database' || $uri === '/setup-db') {
+    require_once __DIR__ . '/setup_database.php';
+    exit;
 }
 
 // 2. Platform Settings, Categories, Promotions, Location Fare

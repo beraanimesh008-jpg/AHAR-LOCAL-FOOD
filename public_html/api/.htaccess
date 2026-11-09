@@ -20,8 +20,8 @@
     RewriteRule ^(.*)$ index.php [QSA,L]
 </IfModule>
 
-# Prevent direct access to database dumps or environment configs
-<FilesMatch "\.(sql|env|json|lock)$">
+# Prevent direct access to credentials, database dumps, environment configs, or locks
+<FilesMatch "(^db_credentials\.php|\.(sql|env|json|lock))$">
     Order allow,deny
     Deny from all
 </FilesMatch>

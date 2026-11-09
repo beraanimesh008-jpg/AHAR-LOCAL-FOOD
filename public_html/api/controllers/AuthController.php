@@ -32,11 +32,8 @@ class AuthController {
             errorResponse('Your account has been deactivated by admin (আপনার অ্যাকাউন্টটি নিষ্ক্রিয় করা হয়েছে)', 403);
         }
 
-        // Verify password (supports bcrypt hash or demo plain fallback)
-        $isValid = password_verify($password, $user['password_hash']) ||
-                   $password === 'password123' ||
-                   $password === 'admin123' ||
-                   $password === $user['password_hash'];
+        // Secure password verification (strict bcrypt hash, no demo bypass)
+        $isValid = password_verify($password, $user['password_hash']);
 
         if (!$isValid) {
             errorResponse('Invalid credentials (পাসওয়ার্ড ভুল)', 401);
@@ -303,7 +300,8 @@ class AuthController {
             errorResponse('Unauthorized Admin Email', 401);
         }
 
-        $isValid = password_verify($password, $user['password_hash']) || $password === 'admin123' || $password === 'password123';
+        // Secure password verification (strict bcrypt, no demo bypass)
+        $isValid = password_verify($password, $user['password_hash']);
         if (!$isValid) {
             errorResponse('Invalid Admin Password', 401);
         }
