@@ -1,0 +1,30 @@
+# ==============================================================================
+# AharLocal - Hostinger Apache .htaccess Configuration
+# ==============================================================================
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /api/
+
+    # 1. Pass Bearer Authorization header to PHP (Prevents Apache stripping it)
+    RewriteCond %{HTTP:Authorization} ^(.*)
+    RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
+
+    # 2. Handle HTTP OPTIONS preflight requests quickly
+    RewriteCond %{REQUEST_METHOD} OPTIONS
+    RewriteRule ^(.*)$ index.php [QSA,L]
+
+    # 3. Route all API endpoints to index.php front controller
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteRule ^(.*)$ index.php [QSA,L]
+</IfModule>
+
+# Prevent direct access to database dumps or environment configs
+<FilesMatch "\.(sql|env|json|lock)$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
+
+# Enforce UTF-8 Default Charset
+AddDefaultCharset UTF-8

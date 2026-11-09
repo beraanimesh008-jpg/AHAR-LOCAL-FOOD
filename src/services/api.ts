@@ -4,6 +4,21 @@
 
 const getAuthToken = () => localStorage.getItem('aharlocal_token');
 
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
+
+function buildUrl(endpoint: string): string {
+  if (endpoint.startsWith('http://') || endpoint.startsWith('https://')) {
+    return endpoint;
+  }
+  if (!API_BASE_URL) {
+    return endpoint;
+  }
+  if (API_BASE_URL.endsWith('/api') && endpoint.startsWith('/api/')) {
+    return `${API_BASE_URL}${endpoint.substring(4)}`;
+  }
+  return `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+}
+
 export async function apiRequest<T = any>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const token = getAuthToken();
   const headers: Record<string, string> = {
@@ -15,8 +30,10 @@ export async function apiRequest<T = any>(endpoint: string, options: RequestInit
     headers['Authorization'] = `Bearer ${token}`;
   }
 
+  const url = buildUrl(endpoint);
+
   try {
-    const res = await fetch(endpoint, {
+    const res = await fetch(url, {
       ...options,
       headers
     });
