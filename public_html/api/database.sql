@@ -127,7 +127,8 @@ CREATE TABLE IF NOT EXISTS `restaurants` (
   INDEX `idx_rest_user` (`user_id`),
   INDEX `idx_rest_area` (`service_area_id`),
   INDEX `idx_rest_status` (`status`),
-  INDEX `idx_rest_open` (`is_open`)
+  INDEX `idx_rest_open` (`is_open`),
+  INDEX `idx_rest_name` (`name`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
@@ -324,6 +325,12 @@ CREATE TABLE IF NOT EXISTS `orders` (
   `picked_up_at` TIMESTAMP NULL,
   `delivered_at` TIMESTAMP NULL,
   `cancelled_at` TIMESTAMP NULL,
+  `settled_at` TIMESTAMP NULL,
+  `settlement_note` TEXT NULL,
+  `refund_amount` DECIMAL(10,2) DEFAULT 0.00,
+  `refund_reason` TEXT NULL,
+  `refunded_at` TIMESTAMP NULL,
+  `dispute_reason` TEXT NULL,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`customer_id`) REFERENCES `users`(`id`) ON DELETE RESTRICT,
   FOREIGN KEY (`restaurant_id`) REFERENCES `restaurants`(`id`) ON DELETE RESTRICT,
@@ -333,7 +340,8 @@ CREATE TABLE IF NOT EXISTS `orders` (
   INDEX `idx_order_cust` (`customer_id`),
   INDEX `idx_order_rest` (`restaurant_id`),
   INDEX `idx_order_rider` (`delivery_partner_id`),
-  INDEX `idx_order_status` (`status`)
+  INDEX `idx_order_status` (`status`),
+  INDEX `idx_order_placed_at` (`placed_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------
@@ -454,10 +462,12 @@ CREATE TABLE IF NOT EXISTS `wallet_transactions` (
   `balance_after` DECIMAL(10,2) NOT NULL,
   `description` VARCHAR(255) NOT NULL,
   `reference_id` VARCHAR(100) NULL COMMENT 'Order ID, Payout ID or Payment Ref',
+  `reference_type` VARCHAR(50) NOT NULL DEFAULT 'other',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`wallet_id`) REFERENCES `wallets`(`id`) ON DELETE RESTRICT,
   INDEX `idx_wtx_wallet` (`wallet_id`),
-  INDEX `idx_wtx_type` (`type`)
+  INDEX `idx_wtx_type` (`type`),
+  UNIQUE KEY `uk_wallet_ref` (`wallet_id`, `reference_type`, `reference_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ------------------------------------------------------------------------------

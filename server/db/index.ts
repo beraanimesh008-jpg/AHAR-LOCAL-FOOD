@@ -1441,21 +1441,66 @@ initInMemoryStore();
 let mysqlPool: mysql.Pool | null = null;
 let useMysql = false;
 
-// Attempt MySQL connection if env is provided
-if (process.env.DATABASE_HOST && process.env.DATABASE_USER) {
+// Hostinger MySQL connection configuration with backward compatibility for DATABASE_* and DB_* env vars
+const dbHost = process.env.DB_HOST || process.env.DATABASE_HOST || '';
+const dbPort = Number(process.env.DB_PORT || process.env.DATABASE_PORT || process.env.MYSQL_PORT) || 3306;
+const dbUser = process.env.DB_USER || process.env.DATABASE_USER || '';
+const dbPassword = process.env.DB_PASSWORD || process.env.DATABASE_PASSWORD || '';
+const dbName = process.env.DB_NAME || process.env.DATABASE_NAME || 'u691798054_aharlocal_db';
+
+const isProduction = process.env.NODE_ENV === 'production';
+
+if (dbHost && dbUser) {
   try {
     mysqlPool = mysql.createPool({
-      host: process.env.DATABASE_HOST,
-      port: Number(process.env.DATABASE_PORT) || 3306,
-      user: process.env.DATABASE_USER,
-      password: process.env.DATABASE_PASSWORD || '',
-      database: process.env.DATABASE_NAME || 'aharlocal_db',
+      host: dbHost,
+      port: dbPort,
+      user: dbUser,
+      password: dbPassword,
+      database: dbName,
       waitForConnections: true,
       connectionLimit: 10,
-      queueLimit: 0
+      queueLimit: 0,
+      connectTimeout: 10000,
+      charset: 'utf8mb4'
     });
-  } catch (err) {
-    console.warn('MySQL pool initialization skipped, using resilient relational memory store:', err);
+    useMysql = true;
+    console.log(`[Database] MySQL pool initialized successfully for host: ${dbHost}, database: ${dbName}`);
+  } catch (err: any) {
+    console.error('[Database] Failed to initialize MySQL connection pool:', err.message);
+    if (isProduction) {
+      throw new Error(`CRITICAL: Failed to initialize MySQL connection pool in production: ${err.message}`);
+    }
+  }
+} else {
+  if (isProduction) {
+    throw new Error('CRITICAL: Missing required MySQL environment variables (DB_HOST, DB_USER, DB_NAME, DB_PASSWORD) in production environment.');
+  } else {
+    console.warn('[Database] MySQL credentials not provided. Running in memory-fallback mode for development/testing.');
+  }
+}
+
+/**
+ * Test database connectivity and return status details.
+ */
+export async function testConnection(): Promise<{ success: boolean; message: string; details?: any }> {
+  if (!mysqlPool) {
+    return { success: false, message: 'MySQL pool is not initialized or configured.' };
+  }
+  try {
+    const connection = await mysqlPool.getConnection();
+    const [rows]: any = await connection.query('SELECT DATABASE() as current_db, NOW() as server_time');
+    connection.release();
+    return {
+      success: true,
+      message: `Successfully connected to MySQL database: ${rows[0]?.current_db}`,
+      details: rows[0]
+    };
+  } catch (err: any) {
+    return {
+      success: false,
+      message: `MySQL connection test failed: ${err.message}`
+    };
   }
 }
 
@@ -1464,16 +1509,28 @@ export const db = {
     return inMemoryStore;
   },
 
+  getPool() {
+    return mysqlPool;
+  },
+
+  isUsingMysql() {
+    return useMysql;
+  },
+
   async query<T = any>(sql: string, params: any[] = []): Promise<QueryResult<T>> {
     if (useMysql && mysqlPool) {
       try {
         const [rows, fields] = await mysqlPool.execute(sql, params);
         return { rows: rows as T[] };
-      } catch (e) {
-        console.warn('MySQL query failed, falling back to memory store:', e);
+      } catch (e: any) {
+        console.error('[Database] MySQL query failed:', e.message, 'SQL:', sql);
+        if (isProduction) {
+          throw new Error(`Database query failed in production: ${e.message}`);
+        }
+        console.warn('[Database] Falling back to memory store for development/testing.');
       }
     }
-    // Return memory store handled by high-level services
+    // Return empty or memory store handled by high-level services
     return { rows: [] };
   }
 };

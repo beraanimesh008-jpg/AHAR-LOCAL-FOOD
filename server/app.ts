@@ -64,7 +64,7 @@ app.get('/api/categories', (req: Request, res: Response) => {
 });
 
 // Calculate live distance & delivery fare between customer and restaurant
-app.post('/api/location/calculate-fare', (req: Request, res: Response) => {
+app.post('/api/location/calculate-fare', async (req: Request, res: Response) => {
   const { customerLat, customerLng, restaurantId, restaurantLat, restaurantLng } = req.body;
   if (!customerLat || !customerLng) {
     return res.status(400).json({ success: false, message: 'Customer coordinates required' });
@@ -95,7 +95,7 @@ app.post('/api/location/calculate-fare', (req: Request, res: Response) => {
     Number(customerLng)
   );
 
-  const breakdown = locationService.getDeliveryFareBreakdown(distanceKm);
+  const breakdown = await locationService.getDeliveryFareBreakdown(distanceKm);
 
   return res.json({
     success: true,

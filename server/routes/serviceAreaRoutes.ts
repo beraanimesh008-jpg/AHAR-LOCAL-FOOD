@@ -5,22 +5,22 @@ import { locationService } from '../services/locationService';
 export const serviceAreaRouter = Router();
 
 // Public: List active service areas
-serviceAreaRouter.get('/', (req: Request, res: Response) => {
-  const store = db.getStore();
+serviceAreaRouter.get('/', async (req: Request, res: Response) => {
+  const activeAreas = await locationService.getActiveServiceAreas();
   return res.json({
     success: true,
-    data: store.service_areas.filter((sa: any) => sa.is_active)
+    data: activeAreas
   });
 });
 
 // Check if a given latitude/longitude is within serviceable boundaries
-serviceAreaRouter.post('/validate-location', (req: Request, res: Response) => {
+serviceAreaRouter.post('/validate-location', async (req: Request, res: Response) => {
   const { lat, lng } = req.body;
   if (!lat || !lng) {
     return res.status(400).json({ success: false, message: 'Latitude and Longitude required' });
   }
 
-  const serviceArea = locationService.findServiceAreaForLocation({
+  const serviceArea = await locationService.findServiceAreaForLocation({
     lat: Number(lat),
     lng: Number(lng)
   });

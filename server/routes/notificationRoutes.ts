@@ -6,8 +6,8 @@ import { authenticateToken, AuthenticatedRequest } from '../middleware/authMiddl
 export const notificationRouter = Router();
 
 // Get notifications for current user
-notificationRouter.get('/', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const notifications = notificationService.getUserNotifications(req.user!.id, req.user!.role);
+notificationRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
+  const notifications = await notificationService.getUserNotifications(req.user!.id, req.user!.role);
   return res.json({
     success: true,
     data: notifications
@@ -15,9 +15,9 @@ notificationRouter.get('/', authenticateToken, (req: AuthenticatedRequest, res: 
 });
 
 // Mark notification as read
-notificationRouter.put('/:id/read', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+notificationRouter.put('/:id/read', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const notifId = Number(req.params.id);
-  const updated = notificationService.markAsRead(notifId);
+  const updated = await notificationService.markAsRead(notifId);
   return res.json({
     success: true,
     data: updated

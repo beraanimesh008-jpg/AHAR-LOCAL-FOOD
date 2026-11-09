@@ -5,8 +5,8 @@ import { authenticateToken, AuthenticatedRequest } from '../middleware/authMiddl
 
 export const orderRouter = Router();
 
-// Create new order
-orderRouter.post('/', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+// Create new order (Phase 2B - unchanged)
+orderRouter.post('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const {
       restaurantId,
@@ -28,7 +28,7 @@ orderRouter.post('/', authenticateToken, (req: AuthenticatedRequest, res: Respon
       });
     }
 
-    const order = orderService.createOrder({
+    const order = await orderService.createOrder({
       customerId: req.user!.id,
       restaurantId: Number(restaurantId || 1),
       directRestaurantOnly: Boolean(directRestaurantOnly),
@@ -55,10 +55,91 @@ orderRouter.post('/', authenticateToken, (req: AuthenticatedRequest, res: Respon
   }
 });
 
-// List orders
-orderRouter.get('/', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+// List orders (Phase 3C MySQL Migration)
+orderRouter.get('/', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const user = req.user!;
+
+  if (db.isUsingMysql()) {
+    let sql = 'SELECT * FROM orders';
+    const params: any[] = [];
+
+    if (user.role === 'customer') {
+      sql += ' WHERE customer_id = ? ORDER BY id DESC';
+      params.push(user.id);
+    } else if (user.role === 'restaurant') {
+      const restRes = await db.query('SELECT id FROM restaurants WHERE user_id = ? LIMIT 1', [user.id]);
+      const restId = restRes.rows[0]?.id;
+      if (!restId) {
+        return res.json({ success: true, data: [] });
+      }
+      sql += ' WHERE restaurant_id = ? ORDER BY id DESC';
+      params.push(restId);
+    } else if (user.role === 'delivery') {
+      const dpRes = await db.query('SELECT id FROM delivery_partners WHERE user_id = ? LIMIT 1', [user.id]);
+      const dpId = dpRes.rows[0]?.id;
+      if (!dpId) {
+        return res.json({ success: true, data: [] });
+      }
+      sql += ` WHERE (delivery_partner_id = ? OR (status NOT IN ('delivered', 'cancelled') AND (rider_requested = 1 OR (is_self_delivery = 0 AND delivery_partner_id IS NULL)))) ORDER BY id DESC`;
+      params.push(dpId);
+    } else {
+      // admin
+      sql += ' ORDER BY id DESC';
+    }
+
+    const ordersRes = await db.query(sql, params);
+    const rawOrders = ordersRes.rows;
+
+    const formattedOrders = await Promise.all(
+      rawOrders.map(async (o: any) => {
+        let items: any[] = [];
+        if (o.items_json) {
+          try {
+            items = typeof o.items_json === 'string' ? JSON.parse(o.items_json) : o.items_json;
+          } catch {}
+        }
+        if (!items || items.length === 0) {
+          const itemsRes = await db.query('SELECT * FROM order_items WHERE order_id = ?', [o.id]);
+          items = itemsRes.rows.map((it: any) => ({
+            food_id: it.food_id,
+            food_name: it.food_name,
+            food_name_bn: it.food_name_bn || it.food_name,
+            price: Number(it.unit_price || it.price),
+            quantity: Number(it.quantity),
+            total_price: Number(it.total_price),
+            restaurant_id: o.restaurant_id,
+            restaurant_name: o.restaurant_name,
+            special_instructions: it.special_instructions || ''
+          }));
+        }
+
+        return {
+          ...o,
+          id: Number(o.id),
+          customer_id: Number(o.customer_id),
+          restaurant_id: Number(o.restaurant_id),
+          delivery_partner_id: o.delivery_partner_id != null ? Number(o.delivery_partner_id) : null,
+          subtotal: Number(o.subtotal || 0),
+          delivery_fee: Number(o.delivery_fee || 0),
+          discount: Number(o.discount || 0),
+          tax: Number(o.tax || 0),
+          grand_total: Number(o.grand_total || 0),
+          distance_km: Number(o.distance_km || 1.0),
+          is_self_delivery: Number(o.is_self_delivery || 0),
+          rider_requested: Number(o.rider_requested || 0),
+          items
+        };
+      })
+    );
+
+    return res.json({
+      success: true,
+      data: formattedOrders
+    });
+  }
+
+  // In-memory fallback
+  const store = db.getStore();
   let orders = [...store.orders];
 
   if (user.role === 'customer') {
@@ -95,23 +176,14 @@ orderRouter.get('/', authenticateToken, (req: AuthenticatedRequest, res: Respons
     }
 
     orders = orders.filter((o: any) => {
-      // 1. Orders assigned to this rider
       if (o.delivery_partner_id === dp.id) return true;
-
-      // 2. Completed or cancelled orders are not available
       if (['delivered', 'cancelled'].includes(o.status)) return false;
-
-      // 3. Orders where restaurant clicked "Request Rider"
       if (Boolean(o.rider_requested)) return true;
-
-      // 4. Platform delivery orders that are unassigned
       const isSelfDelivery = o.is_self_delivery === 1 || o.is_self_delivery === true || o.delivery_mode === 'self_delivery';
       if (!isSelfDelivery && !o.delivery_partner_id) return true;
-
       return false;
     });
   }
-  // admin gets all orders
 
   return res.json({
     success: true,
@@ -119,17 +191,111 @@ orderRouter.get('/', authenticateToken, (req: AuthenticatedRequest, res: Respons
   });
 });
 
-// Get single order with live location info
-orderRouter.get('/:id', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+// Get single order with live location info (Phase 3C MySQL Migration)
+orderRouter.get('/:id', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   const orderId = Number(req.params.id);
+  const user = req.user!;
+
+  if (db.isUsingMysql()) {
+    const orderRes = await db.query('SELECT * FROM orders WHERE id = ? LIMIT 1', [orderId]);
+    const rawOrder = orderRes.rows[0];
+
+    if (!rawOrder) {
+      return res.status(404).json({ success: false, message: 'Order not found' });
+    }
+
+    // Role-based Access Control Check
+    if (user.role === 'customer' && Number(rawOrder.customer_id) !== user.id) {
+      return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
+    }
+    if (user.role === 'restaurant') {
+      const restRes = await db.query('SELECT id FROM restaurants WHERE user_id = ? LIMIT 1', [user.id]);
+      const restId = restRes.rows[0]?.id;
+      if (!restId || Number(rawOrder.restaurant_id) !== Number(restId)) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
+      }
+    }
+    if (user.role === 'delivery') {
+      const dpRes = await db.query('SELECT id FROM delivery_partners WHERE user_id = ? LIMIT 1', [user.id]);
+      const dpId = dpRes.rows[0]?.id;
+      const isAssigned = dpId && Number(rawOrder.delivery_partner_id) === Number(dpId);
+      const isAvailableJob = !['delivered', 'cancelled'].includes(rawOrder.status) &&
+        (Boolean(rawOrder.rider_requested) || (rawOrder.is_self_delivery === 0 && !rawOrder.delivery_partner_id));
+
+      if (!isAssigned && !isAvailableJob) {
+        return res.status(403).json({ success: false, message: 'Not authorized to view this order' });
+      }
+    }
+
+    let items: any[] = [];
+    if (rawOrder.items_json) {
+      try {
+        items = typeof rawOrder.items_json === 'string' ? JSON.parse(rawOrder.items_json) : rawOrder.items_json;
+      } catch {}
+    }
+    if (!items || items.length === 0) {
+      const itemsRes = await db.query('SELECT * FROM order_items WHERE order_id = ?', [rawOrder.id]);
+      items = itemsRes.rows.map((it: any) => ({
+        food_id: it.food_id,
+        food_name: it.food_name,
+        food_name_bn: it.food_name_bn || it.food_name,
+        price: Number(it.unit_price || it.price),
+        quantity: Number(it.quantity),
+        total_price: Number(it.total_price),
+        restaurant_id: rawOrder.restaurant_id,
+        restaurant_name: rawOrder.restaurant_name,
+        special_instructions: it.special_instructions || ''
+      }));
+    }
+
+    let deliveryPartnerLocation = null;
+    if (rawOrder.delivery_partner_id && (rawOrder.status === 'picked_up' || rawOrder.status === 'on_the_way')) {
+      const dpRes = await db.query('SELECT * FROM delivery_partners WHERE id = ? LIMIT 1', [rawOrder.delivery_partner_id]);
+      const dp = dpRes.rows[0];
+      if (dp) {
+        deliveryPartnerLocation = {
+          lat: dp.current_lat != null ? Number(dp.current_lat) : Number(rawOrder.restaurant_lat),
+          lng: dp.current_lng != null ? Number(dp.current_lng) : Number(rawOrder.restaurant_lng),
+          name: dp.name,
+          phone: dp.phone,
+          vehicle_type: dp.vehicle_type,
+          vehicle_number: dp.vehicle_number
+        };
+      }
+    }
+
+    const orderData = {
+      ...rawOrder,
+      id: Number(rawOrder.id),
+      customer_id: Number(rawOrder.customer_id),
+      restaurant_id: Number(rawOrder.restaurant_id),
+      delivery_partner_id: rawOrder.delivery_partner_id != null ? Number(rawOrder.delivery_partner_id) : null,
+      subtotal: Number(rawOrder.subtotal || 0),
+      delivery_fee: Number(rawOrder.delivery_fee || 0),
+      discount: Number(rawOrder.discount || 0),
+      tax: Number(rawOrder.tax || 0),
+      grand_total: Number(rawOrder.grand_total || 0),
+      distance_km: Number(rawOrder.distance_km || 1.0),
+      is_self_delivery: Number(rawOrder.is_self_delivery || 0),
+      rider_requested: Number(rawOrder.rider_requested || 0),
+      items,
+      deliveryPartnerLocation
+    };
+
+    return res.json({
+      success: true,
+      data: orderData
+    });
+  }
+
+  // In-memory fallback
+  const store = db.getStore();
   const order = store.orders.find((o: any) => o.id === orderId);
 
   if (!order) {
     return res.status(404).json({ success: false, message: 'Order not found' });
   }
 
-  // Include delivery partner live location if active
   let deliveryPartnerLocation = null;
   if (order.delivery_partner_id && (order.status === 'picked_up' || order.status === 'on_the_way')) {
     const dp = store.delivery_partners.find((d: any) => d.id === order.delivery_partner_id);
@@ -154,8 +320,8 @@ orderRouter.get('/:id', authenticateToken, (req: AuthenticatedRequest, res: Resp
   });
 });
 
-// Update order status (Restaurant accept/reject, Driver pickup/deliver, etc.)
-orderRouter.put('/:id/status', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+// Update order status (Phase 2B - unchanged)
+orderRouter.put('/:id/status', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const orderId = Number(req.params.id);
     const { status, preparation_minutes, reason, is_self_delivery, delivery_mode } = req.body;
@@ -164,7 +330,7 @@ orderRouter.put('/:id/status', authenticateToken, (req: AuthenticatedRequest, re
       return res.status(400).json({ success: false, message: 'Status is required' });
     }
 
-    const updated = orderService.updateOrderStatus(orderId, status, {
+    const updated = await orderService.updateOrderStatus(orderId, status, {
       preparation_minutes: preparation_minutes ? Number(preparation_minutes) : undefined,
       reason,
       is_self_delivery,
@@ -184,11 +350,11 @@ orderRouter.put('/:id/status', authenticateToken, (req: AuthenticatedRequest, re
   }
 });
 
-// Restaurant: Request / Assign Delivery Partner Rider for an order
-orderRouter.post('/:id/request-rider', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+// Restaurant: Request / Assign Delivery Partner Rider for an order (Phase 2B - unchanged)
+orderRouter.post('/:id/request-rider', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const orderId = Number(req.params.id);
-    const result = orderService.manualRequestDeliveryPartner(orderId);
+    const result = await orderService.manualRequestDeliveryPartner(orderId);
     return res.json({
       success: true,
       message: result.message,
@@ -203,11 +369,11 @@ orderRouter.post('/:id/request-rider', authenticateToken, (req: AuthenticatedReq
   }
 });
 
-// Restaurant: Handover food package to the arrived rider
-orderRouter.post('/:id/handover-to-rider', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
+// Restaurant: Handover food package to the arrived rider (Phase 2B - unchanged)
+orderRouter.post('/:id/handover-to-rider', authenticateToken, async (req: AuthenticatedRequest, res: Response) => {
   try {
     const orderId = Number(req.params.id);
-    const result = orderService.handoverOrderToRider(orderId);
+    const result = await orderService.handoverOrderToRider(orderId);
     return res.json({
       success: true,
       message: 'Food package successfully handed over to the rider! (রাইডারকে খাবার বুঝিয়ে দেওয়া হয়েছে)',
@@ -221,7 +387,7 @@ orderRouter.post('/:id/handover-to-rider', authenticateToken, (req: Authenticate
   }
 });
 
-// Customer: Report issue / request refund during 24h Escrow Protection window
+// Customer: Report issue / request refund during 24h Escrow Protection window (Phase 2B - unchanged)
 orderRouter.post('/:id/dispute', authenticateToken, (req: AuthenticatedRequest, res: Response) => {
   try {
     const orderId = Number(req.params.id);

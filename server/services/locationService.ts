@@ -34,23 +34,82 @@ export const locationService = {
     return parseFloat((R * c).toFixed(2));
   },
 
-  // Validate if delivery coordinate is inside any active service area
-  findServiceAreaForLocation(point: LatLng) {
+  // Fetch active service areas with polygon coordinates from service_areas & service_area_points
+  async getActiveServiceAreas() {
+    if (db.isUsingMysql()) {
+      const saRes = await db.query('SELECT * FROM service_areas WHERE is_active = 1', []);
+      const serviceAreas: any[] = [];
+
+      for (const sa of saRes.rows) {
+        let polygon: LatLng[] = [];
+        if (sa.polygon_json) {
+          try {
+            polygon = JSON.parse(sa.polygon_json);
+          } catch {}
+        }
+        if (!polygon || polygon.length === 0) {
+          const pointsRes = await db.query(
+            'SELECT latitude, longitude FROM service_area_points WHERE service_area_id = ? ORDER BY sequence_order ASC',
+            [sa.id]
+          );
+          polygon = pointsRes.rows.map((p: any) => ({
+            lat: Number(p.latitude),
+            lng: Number(p.longitude)
+          }));
+        }
+
+        serviceAreas.push({
+          id: sa.id,
+          name: sa.name,
+          name_bn: sa.name_bn,
+          min_delivery_charge: sa.min_delivery_charge != null ? Number(sa.min_delivery_charge) : null,
+          per_km_charge: sa.per_km_charge != null ? Number(sa.per_km_charge) : null,
+          is_active: sa.is_active,
+          polygon
+        });
+      }
+      return serviceAreas;
+    }
+
     const store = db.getStore();
-    for (const sa of store.service_areas) {
+    return (store.service_areas || []).filter((sa: any) => sa.is_active);
+  },
+
+  // Validate if delivery coordinate is inside any active service area
+  async findServiceAreaForLocation(point: LatLng) {
+    const serviceAreas = await this.getActiveServiceAreas();
+    for (const sa of serviceAreas) {
       if (sa.is_active && sa.polygon && this.isPointInPolygon(point, sa.polygon)) {
         return sa;
       }
     }
-    // Return null if location is outside all active boundary polygons
     return null;
   },
 
   // Calculate delivery fee based on Admin-configured per-km rates
-  calculateDeliveryFee(distanceKm: number, serviceAreaId?: number): number {
-    const store = db.getStore();
-    const settings = store.settings || {};
-    const sa = store.service_areas?.find((s: any) => s.id === serviceAreaId) || store.service_areas?.[0];
+  async calculateDeliveryFee(distanceKm: number, serviceAreaId?: number): Promise<number> {
+    let settings: any = {};
+    let sa: any = null;
+
+    if (db.isUsingMysql()) {
+      const settingsRes = await db.query('SELECT * FROM platform_settings LIMIT 1', []);
+      if (settingsRes.rows[0]?.setting_value) {
+        try { settings = JSON.parse(settingsRes.rows[0].setting_value); } catch {}
+      }
+
+      if (serviceAreaId) {
+        const saRes = await db.query('SELECT * FROM service_areas WHERE id = ? LIMIT 1', [serviceAreaId]);
+        sa = saRes.rows[0] || null;
+      }
+      if (!sa) {
+        const firstSaRes = await db.query('SELECT * FROM service_areas WHERE is_active = 1 LIMIT 1', []);
+        sa = firstSaRes.rows[0] || null;
+      }
+    } else {
+      const store = db.getStore();
+      settings = store.settings || {};
+      sa = store.service_areas?.find((s: any) => s.id === serviceAreaId) || store.service_areas?.[0];
+    }
 
     const baseFare = Number(settings.delivery_base_fare ?? sa?.min_delivery_charge ?? 25);
     const baseDistanceKm = Number(settings.delivery_base_distance_km ?? 2.0);
@@ -66,10 +125,29 @@ export const locationService = {
   },
 
   // Get detailed breakdown of distance and fare
-  getDeliveryFareBreakdown(distanceKm: number, serviceAreaId?: number) {
-    const store = db.getStore();
-    const settings = store.settings || {};
-    const sa = store.service_areas?.find((s: any) => s.id === serviceAreaId) || store.service_areas?.[0];
+  async getDeliveryFareBreakdown(distanceKm: number, serviceAreaId?: number) {
+    let settings: any = {};
+    let sa: any = null;
+
+    if (db.isUsingMysql()) {
+      const settingsRes = await db.query('SELECT * FROM platform_settings LIMIT 1', []);
+      if (settingsRes.rows[0]?.setting_value) {
+        try { settings = JSON.parse(settingsRes.rows[0].setting_value); } catch {}
+      }
+
+      if (serviceAreaId) {
+        const saRes = await db.query('SELECT * FROM service_areas WHERE id = ? LIMIT 1', [serviceAreaId]);
+        sa = saRes.rows[0] || null;
+      }
+      if (!sa) {
+        const firstSaRes = await db.query('SELECT * FROM service_areas WHERE is_active = 1 LIMIT 1', []);
+        sa = firstSaRes.rows[0] || null;
+      }
+    } else {
+      const store = db.getStore();
+      settings = store.settings || {};
+      sa = store.service_areas?.find((s: any) => s.id === serviceAreaId) || store.service_areas?.[0];
+    }
 
     const baseFare = Number(settings.delivery_base_fare ?? sa?.min_delivery_charge ?? 25);
     const baseDistanceKm = Number(settings.delivery_base_distance_km ?? 2.0);
@@ -77,7 +155,7 @@ export const locationService = {
     const minFare = Number(settings.min_delivery_fare ?? 20);
 
     const extraKm = Math.max(0, parseFloat((distanceKm - baseDistanceKm).toFixed(2)));
-    const totalFee = this.calculateDeliveryFee(distanceKm, serviceAreaId);
+    const totalFee = await this.calculateDeliveryFee(distanceKm, serviceAreaId);
 
     return {
       distanceKm,
@@ -91,6 +169,52 @@ export const locationService = {
         ? `₹${baseFare} base fare (up to ${baseDistanceKm} km)`
         : `₹${baseFare} base (${baseDistanceKm} km) + ${extraKm} km @ ₹${perKmRate}/km = ₹${totalFee}`
     };
-  }
+  },
 
+  // Fetch location radius rankings from location_rankings table
+  async getLocationRankings() {
+    if (db.isUsingMysql()) {
+      const res = await db.query('SELECT * FROM location_rankings WHERE is_active = 1', []);
+      return res.rows.map((lr: any) => ({
+        id: lr.id,
+        name: lr.name,
+        name_bn: lr.name_bn,
+        lat: Number(lr.lat),
+        lng: Number(lr.lng),
+        radius_km: Number(lr.radius_km),
+        is_active: lr.is_active,
+        rankings: lr.rankings_json ? JSON.parse(lr.rankings_json) : []
+      }));
+    }
+
+    const store = db.getStore();
+    return (store.location_rankings || []).filter((lr: any) => lr.is_active);
+  },
+
+  // Update location ranking rankings_json
+  async updateLocationRanking(id: number, rankings: any[]) {
+    if (db.isUsingMysql()) {
+      await db.query('UPDATE location_rankings SET rankings_json = ? WHERE id = ?', [JSON.stringify(rankings), id]);
+      const res = await db.query('SELECT * FROM location_rankings WHERE id = ? LIMIT 1', [id]);
+      const lr = res.rows[0];
+      if (!lr) return null;
+      return {
+        id: lr.id,
+        name: lr.name,
+        name_bn: lr.name_bn,
+        lat: Number(lr.lat),
+        lng: Number(lr.lng),
+        radius_km: Number(lr.radius_km),
+        is_active: lr.is_active,
+        rankings: lr.rankings_json ? JSON.parse(lr.rankings_json) : []
+      };
+    }
+
+    const store = db.getStore();
+    const lr = (store.location_rankings || []).find((r: any) => r.id === id);
+    if (lr) {
+      lr.rankings = rankings;
+    }
+    return lr;
+  }
 };

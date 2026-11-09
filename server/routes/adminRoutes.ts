@@ -10,60 +10,304 @@ export const adminRouter = Router();
 // Apply auth & admin role requirement across all admin routes
 adminRouter.use(authenticateToken, requireRole(['admin']));
 
+function formatAdminRestaurantRow(r: any, ownerUser?: any, menu?: any[]) {
+  let cuisine_types: string[] = [];
+  if (r.cuisine_types_json) {
+    try {
+      cuisine_types = typeof r.cuisine_types_json === 'string' ? JSON.parse(r.cuisine_types_json) : r.cuisine_types_json;
+    } catch {}
+  }
+  let photos: string[] = [];
+  if (r.photos_json) {
+    try {
+      photos = typeof r.photos_json === 'string' ? JSON.parse(r.photos_json) : r.photos_json;
+    } catch {}
+  }
+  if (photos.length === 0) {
+    photos = [r.banner_url || r.photo_url, r.photo_url, r.banner_url || 'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=600'].filter(Boolean);
+  }
+  let settlements: any[] = [];
+  if (r.settlements_json) {
+    try {
+      settlements = typeof r.settlements_json === 'string' ? JSON.parse(r.settlements_json) : r.settlements_json;
+    } catch {}
+  }
+
+  return {
+    ...r,
+    id: Number(r.id),
+    user_id: Number(r.user_id),
+    service_area_id: r.service_area_id != null ? Number(r.service_area_id) : null,
+    latitude: Number(r.latitude),
+    longitude: Number(r.longitude),
+    commission_rate: r.commission_rate != null ? Number(r.commission_rate) : 15,
+    min_order_amount: r.min_order_amount != null ? Number(r.min_order_amount) : 0,
+    avg_delivery_minutes: Number(r.avg_delivery_minutes || 30),
+    rating: Number(r.rating || 4.5),
+    rating_count: Number(r.rating_count || 0),
+    is_open: Number(r.is_open ?? 1),
+    is_pure_veg: Number(r.is_pure_veg || 0),
+    self_delivery_enabled: Number(r.self_delivery_enabled || 0),
+    self_delivery_radius_km: Number(r.self_delivery_radius_km || 5.0),
+    is_active: Number(r.is_active ?? 1),
+    status: r.status || 'pending',
+    photos,
+    owner_photo: ownerUser?.profile_photo || ownerUser?.passport_photo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150',
+    owner_phone: r.phone || ownerUser?.phone,
+    owner_email: r.email || ownerUser?.email,
+    menu_count: menu ? menu.length : Number(r.menu_count || 0),
+    menu: menu || [],
+    trade_license: r.trade_license || 'TL-WB-2024-8891',
+    gst_number: r.gst_number || '19AAAAA0000A1Z5',
+    payment_method: r.payment_method || 'upi',
+    upi_id: r.upi_id || 'kolkatabiryani@okhdfcbank',
+    upi_qr_photo: r.upi_qr_photo || 'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?w=400',
+    bank_name: r.bank_name || 'State Bank of India',
+    bank_account_no: r.bank_account_no || r.bank_account_number || '38291048291',
+    bank_account_holder: r.bank_account_holder || r.owner_name || r.name,
+    bank_ifsc: r.bank_ifsc || 'SBIN0001234',
+    bank_passbook_photo: r.bank_passbook_photo || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400',
+    settlements,
+    created_at: r.created_at || '2026-01-15T10:00:00.000Z'
+  };
+}
+
+function formatAdminDeliveryPartnerRow(dp: any, user?: any) {
+  let settlements: any[] = [];
+  if (dp.settlements_json) {
+    try {
+      settlements = typeof dp.settlements_json === 'string' ? JSON.parse(dp.settlements_json) : dp.settlements_json;
+    } catch {}
+  }
+
+  return {
+    ...dp,
+    id: Number(dp.id),
+    user_id: Number(dp.user_id),
+    service_area_id: dp.service_area_id != null ? Number(dp.service_area_id) : null,
+    is_online: Number(dp.is_online || 0),
+    is_active: Number(dp.is_active ?? (dp.status === 'approved' ? 1 : 0)),
+    status: dp.status || 'pending',
+    current_lat: dp.current_lat != null ? Number(dp.current_lat) : null,
+    current_lng: dp.current_lng != null ? Number(dp.current_lng) : null,
+    total_deliveries: Number(dp.total_deliveries || 0),
+    rating: Number(dp.rating || 5.0),
+    wallet_balance: Number(dp.wallet_balance || 0),
+    email: dp.email || user?.email || 'rider@aharlocal.com',
+    gender: dp.gender || user?.gender || 'Male',
+    age: dp.age || user?.age || 26,
+    address: dp.address || user?.address || '12/C Hazra Road, South Kolkata, West Bengal 700026',
+    aadhaar_number: dp.aadhaar_number || '8921-4412-9021',
+    pan_number: dp.pan_number || 'BKRPD4521E',
+    payment_method: dp.payment_method || user?.payment_method || 'upi',
+    upi_id: dp.upi_id || user?.upi_id || 'rahul.sen@okaxis',
+    upi_qr_photo: dp.upi_qr_photo || user?.upi_qr_photo || 'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?w=400',
+    bank_name: dp.bank_name || user?.bank_name || 'State Bank of India',
+    bank_account_no: dp.bank_account_no || dp.bank_account_number || user?.bank_account_no || '20491820491',
+    bank_account_holder: dp.bank_account_holder || user?.bank_account_holder || dp.name,
+    bank_ifsc: dp.bank_ifsc || user?.bank_ifsc || 'SBIN0002341',
+    bank_passbook_photo: dp.bank_passbook_photo || user?.bank_passbook_photo || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400',
+    settlements,
+    passport_photo: dp.passport_photo || dp.photo_url || user?.passport_photo || user?.profile_photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+    profile_photo: dp.profile_photo || dp.photo_url || user?.profile_photo || user?.passport_photo || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=200',
+    created_at: dp.created_at || user?.created_at || '2026-02-01T09:30:00.000Z'
+  };
+}
+
+function formatAdminCustomerRow(c: any, totalOrders: number = 0, addressStr?: string) {
+  let refunds: any[] = [];
+  if (c.refunds_json) {
+    try {
+      refunds = typeof c.refunds_json === 'string' ? JSON.parse(c.refunds_json) : c.refunds_json;
+    } catch {}
+  }
+
+  return {
+    id: Number(c.id),
+    name: c.name,
+    email: c.email,
+    phone: c.phone,
+    cod_enabled: c.cod_enabled ?? 0,
+    total_orders: Number(totalOrders || 0),
+    is_active: c.is_active ?? 1,
+    dob: c.dob || '15/08/1996',
+    gender: c.gender || 'Not specified',
+    address: addressStr || c.address || 'Flat 3B, Sunshine Heights, 14 Ballygunge Circular Road, Kolkata 700019',
+    payment_method: c.payment_method || 'upi',
+    upi_id: c.upi_id || `${c.name ? c.name.toLowerCase().replace(/\s+/g, '') : 'customer'}@okaxis`,
+    upi_qr_photo: c.upi_qr_photo || 'https://images.unsplash.com/photo-1607344645866-009c320c5ab8?w=400',
+    bank_name: c.bank_name || 'HDFC Bank',
+    bank_account_no: c.bank_account_no || '501004829104',
+    bank_account_holder: c.bank_account_holder || c.name,
+    bank_ifsc: c.bank_ifsc || 'HDFC0000456',
+    bank_passbook_photo: c.bank_passbook_photo || 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=400',
+    refunds,
+    passport_photo: c.passport_photo || c.profile_photo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+    profile_photo: c.profile_photo || c.passport_photo || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=200',
+    created_at: c.created_at
+  };
+}
+
 // Admin Dashboard KPI Analytics
-adminRouter.get('/dashboard', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.get('/dashboard', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    try {
+      const custRes = await db.query("SELECT COUNT(*) as cnt FROM users WHERE role = 'customer'");
+      const totalCustomers = Number(custRes.rows[0]?.cnt || 0);
 
-  const totalCustomers = store.users.filter((u: any) => u.role === 'customer').length;
-  const totalRestaurants = store.restaurants.length;
-  const approvedRestaurants = store.restaurants.filter((r: any) => r.status === 'approved').length;
-  const pendingRestaurants = store.restaurants.filter((r: any) => r.status === 'pending').length;
+      const restRes = await db.query(
+        "SELECT COUNT(*) as total, SUM(CASE WHEN status = 'approved' THEN 1 ELSE 0 END) as approved, SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending FROM restaurants"
+      );
+      const restRow = restRes.rows[0] || {};
+      const totalRestaurants = Number(restRow.total || 0);
+      const approvedRestaurants = Number(restRow.approved || 0);
+      const pendingRestaurants = Number(restRow.pending || 0);
 
-  const totalPartners = store.delivery_partners.length;
-  const onlinePartners = store.delivery_partners.filter((p: any) => p.is_online === 1).length;
-  const pendingPartners = store.delivery_partners.filter((p: any) => p.status === 'pending').length;
+      const dpRes = await db.query(
+        "SELECT COUNT(*) as total, SUM(CASE WHEN is_online = 1 THEN 1 ELSE 0 END) as online, SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending FROM delivery_partners"
+      );
+      const dpRow = dpRes.rows[0] || {};
+      const totalPartners = Number(dpRow.total || 0);
+      const onlinePartners = Number(dpRow.online || 0);
+      const pendingPartners = Number(dpRow.pending || 0);
 
-  const orders = store.orders;
-  const totalOrders = orders.length;
-  const activeOrders = orders.filter((o: any) => ['pending', 'accepted', 'preparing', 'ready', 'assigned', 'picked_up', 'on_the_way'].includes(o.status)).length;
-  const completedOrders = orders.filter((o: any) => o.status === 'delivered').length;
-  const cancelledOrders = orders.filter((o: any) => o.status === 'cancelled').length;
+      const ordRes = await db.query(
+        `SELECT
+          COUNT(*) as total,
+          SUM(CASE WHEN status IN ('placed', 'confirmed', 'preparing', 'ready_for_pickup', 'on_the_way', 'accepted') THEN 1 ELSE 0 END) as active,
+          SUM(CASE WHEN status = 'delivered' THEN 1 ELSE 0 END) as completed,
+          SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END) as cancelled,
+          COALESCE(SUM(subtotal), 0) as grossSales,
+          COALESCE(SUM(grand_total), 0) as totalRevenue,
+          COALESCE(SUM(subtotal * COALESCE(restaurant_commission_percent, 15.0) / 100.0), 0) as platformCommission
+        FROM orders`
+      );
+      const ordRow = ordRes.rows[0] || {};
+      const totalOrders = Number(ordRow.total || 0);
+      const activeOrders = Number(ordRow.active || 0);
+      const completedOrders = Number(ordRow.completed || 0);
+      const cancelledOrders = Number(ordRow.cancelled || 0);
+      const grossSales = Math.round(Number(ordRow.grossSales) * 100) / 100;
+      const totalRevenue = Math.round(Number(ordRow.totalRevenue) * 100) / 100;
+      const platformCommission = Math.round(Number(ordRow.platformCommission) * 100) / 100;
 
-  const grossSales = orders.reduce((sum: number, o: any) => sum + Number(o.subtotal), 0);
-  const totalRevenue = orders.reduce((sum: number, o: any) => sum + Number(o.grand_total), 0);
-  const platformCommission = Math.round(orders.reduce((sum: number, o: any) => {
-    const rest = store.restaurants.find((r: any) => r.id === o.restaurant_id);
-    const rate = rest ? Number(rest.commission_rate) : 15;
-    return sum + (Number(o.subtotal) * (rate / 100));
-  }, 0) * 100) / 100;
+      const recentOrdersRes = await db.query("SELECT * FROM orders ORDER BY id DESC LIMIT 10");
+      const recentOrders = recentOrdersRes.rows.map((o: any) => {
+        let items = [];
+        try { items = typeof o.items_json === 'string' ? JSON.parse(o.items_json) : (o.items_json || []); } catch {}
+        return {
+          ...o,
+          id: Number(o.id),
+          customer_id: Number(o.customer_id),
+          restaurant_id: Number(o.restaurant_id),
+          delivery_partner_id: o.delivery_partner_id ? Number(o.delivery_partner_id) : null,
+          subtotal: Number(o.subtotal),
+          delivery_fee: Number(o.delivery_fee || 0),
+          discount: Number(o.discount || 0),
+          tax: Number(o.tax || 0),
+          grand_total: Number(o.grand_total),
+          items
+        };
+      });
 
-  return res.json({
-    success: true,
-    data: {
-      metrics: {
-        totalCustomers,
-        totalRestaurants,
-        approvedRestaurants,
-        pendingRestaurants,
-        totalPartners,
-        onlinePartners,
-        pendingPartners,
-        totalOrders,
-        activeOrders,
-        completedOrders,
-        cancelledOrders,
-        grossSales,
-        totalRevenue,
-        platformCommission
-      },
-      recentOrders: orders.slice(0, 10),
-      serviceAreas: store.service_areas
+      const saRes = await db.query("SELECT * FROM service_areas WHERE is_active = 1");
+      const serviceAreas = saRes.rows.map((sa: any) => {
+        let polygon = [];
+        try { polygon = typeof sa.polygon_json === 'string' ? JSON.parse(sa.polygon_json) : (sa.polygon_json || []); } catch {}
+        return {
+          ...sa,
+          id: Number(sa.id),
+          min_delivery_charge: Number(sa.min_delivery_charge || 25),
+          per_km_charge: Number(sa.per_km_charge || 8),
+          is_active: Number(sa.is_active ?? 1),
+          polygon
+        };
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          metrics: {
+            totalCustomers,
+            totalRestaurants,
+            approvedRestaurants,
+            pendingRestaurants,
+            totalPartners,
+            onlinePartners,
+            pendingPartners,
+            totalOrders,
+            activeOrders,
+            completedOrders,
+            cancelledOrders,
+            grossSales,
+            totalRevenue,
+            platformCommission
+          },
+          recentOrders,
+          serviceAreas
+        }
+      });
+    } catch (err: any) {
+      console.error('[Admin API] Dashboard KPI fetch error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to compute dashboard KPI analytics' });
     }
+  }
+
   });
 });
 
 // Admin: Get all restaurants
-adminRouter.get('/restaurants', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/restaurants', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    try {
+      const restRes = await db.query(
+        `SELECT r.*,
+                u.profile_photo as owner_profile_photo,
+                u.passport_photo as owner_passport_photo,
+                u.phone as owner_user_phone,
+                u.email as owner_user_email
+         FROM restaurants r
+         LEFT JOIN users u ON r.user_id = u.id
+         ORDER BY r.id DESC`
+      );
+
+      const foodRes = await db.query('SELECT * FROM foods');
+      const foodMap = new Map<number, any[]>();
+      for (const f of foodRes.rows) {
+        const rid = Number(f.restaurant_id);
+        if (!foodMap.has(rid)) foodMap.set(rid, []);
+        foodMap.get(rid)!.push({
+          ...f,
+          id: Number(f.id),
+          restaurant_id: rid,
+          price: Number(f.price),
+          discount_price: f.discount_price != null ? Number(f.discount_price) : null,
+          is_veg: Number(f.is_veg || 0),
+          is_available: Number(f.is_available ?? 1),
+          is_recommended: Number(f.is_recommended || 0),
+          preparation_minutes: Number(f.preparation_minutes || 15)
+        });
+      }
+
+      const enriched = restRes.rows.map((r: any) => {
+        const ownerUser = {
+          profile_photo: r.owner_profile_photo,
+          passport_photo: r.owner_passport_photo,
+          phone: r.owner_user_phone,
+          email: r.owner_user_email
+        };
+        const menu = foodMap.get(Number(r.id)) || [];
+        return formatAdminRestaurantRow(r, ownerUser, menu);
+      });
+
+      return res.json({ success: true, data: enriched });
+    } catch (err: any) {
+      console.error('[Admin API] Get restaurants error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to fetch restaurant listing' });
+    }
+  }
+
+  // inMemoryStore fallback
   const store = db.getStore();
   const enriched = store.restaurants.map((rest: any) => {
     const ownerUser = store.users.find((u: any) => u.id === rest.user_id);
@@ -149,10 +393,95 @@ adminRouter.post('/restaurants/:id/settle', (req: AuthenticatedRequest, res: Res
 });
 
 // Admin: Update restaurant approval status & commission
-adminRouter.put('/restaurants/:id/status', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.put('/restaurants/:id/status', async (req: AuthenticatedRequest, res: Response) => {
   const restId = Number(req.params.id);
   const { status, commission_rate, rejection_reason } = req.body;
+
+  if (db.isUsingMysql()) {
+    try {
+      const existingRes = await db.query('SELECT * FROM restaurants WHERE id = ? LIMIT 1', [restId]);
+      if (!existingRes.rows[0]) {
+        return res.status(404).json({ success: false, message: 'Restaurant not found' });
+      }
+      const rest = existingRes.rows[0];
+      const updates: string[] = [];
+      const params: any[] = [];
+
+      let updatedCommissionRate = rest.commission_rate != null ? Number(rest.commission_rate) : 15;
+      if (commission_rate !== undefined) {
+        updatedCommissionRate = Math.max(0, Math.min(100, Number(commission_rate)));
+        updates.push('commission_rate = ?');
+        params.push(updatedCommissionRate);
+      }
+
+      if (status) {
+        updates.push('status = ?');
+        params.push(status);
+        if (rejection_reason !== undefined) {
+          updates.push('rejection_reason = ?');
+          params.push(rejection_reason);
+        }
+        if (status === 'approved') {
+          updates.push('is_active = 1');
+        } else if (status === 'rejected' || status === 'blocked') {
+          updates.push('is_active = 0');
+        }
+      }
+
+      if (updates.length > 0) {
+        params.push(restId);
+        await db.query(`UPDATE restaurants SET ${updates.join(', ')} WHERE id = ?`, params);
+      }
+
+      // Sync user status if status updated
+      if (status) {
+        const userStatus = status === 'approved' ? 'active' : 'blocked';
+        const userActive = status === 'approved' ? 1 : 0;
+        await db.query('UPDATE users SET status = ?, is_active = ? WHERE id = ?', [userStatus, userActive, rest.user_id]);
+
+        notificationService.createNotification({
+          userId: Number(rest.user_id),
+          role: 'restaurant',
+          title: `Restaurant Application ${status.toUpperCase()}`,
+          title_bn: `রেস্তোরাঁর আবেদন ${status === 'approved' ? 'অনুমোদিত হয়েছে' : 'বাতিল করা হয়েছে'}`,
+          message: status === 'approved'
+            ? 'Congratulations! Your restaurant has been approved by admin. You can now accept orders.'
+            : `Your application was rejected: ${rejection_reason || 'Incomplete business documents.'}`,
+          message_bn: status === 'approved'
+            ? 'অভিনন্দন! আপনার রেস্তোরাঁ অ্যাডমিন দ্বারা অনুমোদিত হয়েছে। এখন খাবার বিক্রি করতে পারেন।'
+            : 'আপনার আবেদনটি বাতিল হয়েছে। প্রয়োজনীয় নথি সংশোধন করুন।',
+          type: 'admin_alert'
+        });
+      } else if (commission_rate !== undefined) {
+        notificationService.createNotification({
+          userId: Number(rest.user_id),
+          role: 'restaurant',
+          title: 'Commission Rate Updated',
+          title_bn: 'কমিশন রেট আপডেট করা হয়েছে',
+          message: `Admin has updated your restaurant commission rate to ${updatedCommissionRate}%.`,
+          message_bn: `অ্যাডমিন আপনার রেস্তোরাঁর কমিশন রেট ${updatedCommissionRate}% নির্ধারণ করেছেন।`,
+          type: 'admin_alert'
+        });
+      }
+
+      const updatedRes = await db.query('SELECT * FROM restaurants WHERE id = ? LIMIT 1', [restId]);
+      const updatedRest = formatAdminRestaurantRow(updatedRes.rows[0]);
+
+      return res.json({
+        success: true,
+        message: status
+          ? `Restaurant status updated to ${status}`
+          : `Restaurant commission updated to ${updatedCommissionRate}%`,
+        data: updatedRest
+      });
+    } catch (err: any) {
+      console.error('[Admin API] Update restaurant status error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to update restaurant status' });
+    }
+  }
+
+  // inMemoryStore fallback
+  const store = db.getStore();
   const rest = store.restaurants.find((r: any) => r.id === restId);
 
   if (!rest) {
@@ -203,9 +532,76 @@ adminRouter.put('/restaurants/:id/status', (req: AuthenticatedRequest, res: Resp
 });
 
 // Admin: Toggle Block/Unblock for a restaurant
-adminRouter.put('/restaurants/:id/block', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.put('/restaurants/:id/block', async (req: AuthenticatedRequest, res: Response) => {
   const restId = Number(req.params.id);
+
+  if (db.isUsingMysql()) {
+    try {
+      const existingRes = await db.query('SELECT * FROM restaurants WHERE id = ? LIMIT 1', [restId]);
+      if (!existingRes.rows[0]) {
+        return res.status(404).json({ success: false, message: 'Restaurant not found' });
+      }
+
+      const rest = existingRes.rows[0];
+
+      if (req.user?.id && Number(rest.user_id) === Number(req.user.id)) {
+        return res.status(400).json({ success: false, message: 'You cannot block your own user account' });
+      }
+
+      const isCurrentlyBlocked = rest.status === 'blocked' || rest.is_active === 0;
+      const newStatus = isCurrentlyBlocked ? 'approved' : 'blocked';
+      const newIsActive = isCurrentlyBlocked ? 1 : 0;
+      const newUserStatus = isCurrentlyBlocked ? 'active' : 'blocked';
+
+      const pool = db.getPool();
+      if (pool) {
+        const conn = await pool.getConnection();
+        try {
+          await conn.beginTransaction();
+          await conn.execute('UPDATE restaurants SET status = ?, is_active = ? WHERE id = ?', [newStatus, newIsActive, restId]);
+          await conn.execute('UPDATE users SET status = ?, is_active = ? WHERE id = ?', [newUserStatus, newIsActive, rest.user_id]);
+          await conn.commit();
+        } catch (err) {
+          await conn.rollback();
+          throw err;
+        } finally {
+          conn.release();
+        }
+      } else {
+        await db.query('UPDATE restaurants SET status = ?, is_active = ? WHERE id = ?', [newStatus, newIsActive, restId]);
+        await db.query('UPDATE users SET status = ?, is_active = ? WHERE id = ?', [newUserStatus, newIsActive, rest.user_id]);
+      }
+
+      notificationService.createNotification({
+        userId: Number(rest.user_id),
+        role: 'restaurant',
+        title: isCurrentlyBlocked ? 'Restaurant Account Unblocked' : 'Restaurant Account Blocked',
+        title_bn: isCurrentlyBlocked ? 'রেস্তোরাঁ আনব্লক করা হয়েছে' : 'রেস্তোরাঁ সাময়িক স্থগিত (Blocked)',
+        message: isCurrentlyBlocked
+          ? 'Your restaurant has been unblocked by the admin. You can now accept food orders.'
+          : 'Your restaurant has been temporarily blocked by administration. Please contact support.',
+        message_bn: isCurrentlyBlocked
+          ? 'আপনার রেস্তোরাঁটি অ্যাডমিন দ্বারা আনব্লক করা হয়েছে। এখন নতুন অর্ডার গ্রহণ করতে পারবেন।'
+          : 'প্রশাসনিক কারণে আপনার রেস্তোরাঁটি সাময়িকভাবে ব্লক করা হয়েছে। সাপোর্টে যোগাযোগ করুন।',
+        type: 'admin_alert'
+      });
+
+      const updatedRes = await db.query('SELECT * FROM restaurants WHERE id = ? LIMIT 1', [restId]);
+      const updatedRest = formatAdminRestaurantRow(updatedRes.rows[0]);
+
+      return res.json({
+        success: true,
+        message: `Restaurant "${rest.name}" has been ${isCurrentlyBlocked ? 'UNBLOCKED (Active)' : 'BLOCKED'}`,
+        data: updatedRest
+      });
+    } catch (err: any) {
+      console.error('[Admin API] Block restaurant error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to toggle restaurant block status' });
+    }
+  }
+
+  // inMemoryStore fallback
+  const store = db.getStore();
   const rest = store.restaurants.find((r: any) => r.id === restId);
 
   if (!rest) {
@@ -283,7 +679,60 @@ adminRouter.post('/restaurants/:id/message', (req: AuthenticatedRequest, res: Re
 });
 
 // Admin: Get all delivery partners
-adminRouter.get('/delivery-partners', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/delivery-partners', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    try {
+      const dpRes = await db.query(
+        `SELECT dp.*,
+                u.email as user_email,
+                u.gender as user_gender,
+                u.dob as user_dob,
+                u.address as user_address,
+                u.profile_photo as user_profile_photo,
+                u.passport_photo as user_passport_photo,
+                u.payment_method as user_payment_method,
+                u.upi_id as user_upi_id,
+                u.upi_qr_photo as user_upi_qr_photo,
+                u.bank_name as user_bank_name,
+                u.bank_account_no as user_bank_account_no,
+                u.bank_account_holder as user_bank_account_holder,
+                u.bank_ifsc as user_bank_ifsc,
+                u.bank_passbook_photo as user_bank_passbook_photo,
+                u.created_at as user_created_at
+         FROM delivery_partners dp
+         LEFT JOIN users u ON dp.user_id = u.id
+         ORDER BY dp.id DESC`
+      );
+
+      const partners = dpRes.rows.map((dp: any) => {
+        const u = {
+          email: dp.user_email,
+          gender: dp.user_gender,
+          dob: dp.user_dob,
+          address: dp.user_address,
+          profile_photo: dp.user_profile_photo,
+          passport_photo: dp.user_passport_photo,
+          payment_method: dp.user_payment_method,
+          upi_id: dp.user_upi_id,
+          upi_qr_photo: dp.user_upi_qr_photo,
+          bank_name: dp.user_bank_name,
+          bank_account_no: dp.user_bank_account_no,
+          bank_account_holder: dp.user_bank_account_holder,
+          bank_ifsc: dp.user_bank_ifsc,
+          bank_passbook_photo: dp.user_bank_passbook_photo,
+          created_at: dp.user_created_at
+        };
+        return formatAdminDeliveryPartnerRow(dp, u);
+      });
+
+      return res.json({ success: true, data: partners });
+    } catch (err: any) {
+      console.error('[Admin API] Get delivery partners error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to fetch delivery partners listing' });
+    }
+  }
+
+  // inMemoryStore fallback
   const store = db.getStore();
   const partners = store.delivery_partners.map((dp: any) => {
     const user = store.users.find((u: any) => u.id === dp.user_id);
@@ -370,10 +819,80 @@ adminRouter.post('/delivery-partners/:id/settle', (req: AuthenticatedRequest, re
 });
 
 // Admin: Update delivery partner status
-adminRouter.put('/delivery-partners/:id/status', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.put('/delivery-partners/:id/status', async (req: AuthenticatedRequest, res: Response) => {
   const dpId = Number(req.params.id);
   const { status } = req.body;
+
+  if (db.isUsingMysql()) {
+    try {
+      const existingRes = await db.query('SELECT * FROM delivery_partners WHERE id = ? LIMIT 1', [dpId]);
+      if (!existingRes.rows[0]) {
+        return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+      }
+
+      const dp = existingRes.rows[0];
+      const newIsActive = status === 'approved' ? 1 : 0;
+      const newOnline = status === 'approved' ? Number(dp.is_online || 0) : 0;
+      const newUserStatus = status === 'approved' ? 'active' : 'blocked';
+
+      const pool = db.getPool();
+      if (pool) {
+        const conn = await pool.getConnection();
+        try {
+          await conn.beginTransaction();
+          await conn.execute(
+            'UPDATE delivery_partners SET status = ?, is_active = ?, is_online = ? WHERE id = ?',
+            [status, newIsActive, newOnline, dpId]
+          );
+          await conn.execute(
+            'UPDATE users SET status = ?, is_active = ? WHERE id = ?',
+            [newUserStatus, newIsActive, dp.user_id]
+          );
+          await conn.commit();
+        } catch (err) {
+          await conn.rollback();
+          throw err;
+        } finally {
+          conn.release();
+        }
+      } else {
+        await db.query(
+          'UPDATE delivery_partners SET status = ?, is_active = ?, is_online = ? WHERE id = ?',
+          [status, newIsActive, newOnline, dpId]
+        );
+        await db.query('UPDATE users SET status = ?, is_active = ? WHERE id = ?', [newUserStatus, newIsActive, dp.user_id]);
+      }
+
+      notificationService.createNotification({
+        userId: Number(dp.user_id),
+        role: 'delivery',
+        title: status === 'approved' ? 'Rider Account Approved!' : 'Rider Application Rejected',
+        title_bn: status === 'approved' ? 'রাইডার অ্যাকাউন্ট অনুমোদিত হয়েছে! ✓' : 'রাইডার আবেদন বাতিল করা হয়েছে ✕',
+        message: status === 'approved'
+          ? 'Congratulations! Your delivery partner profile has been approved by platform administration. You can now go online to accept delivery jobs.'
+          : 'Your delivery partner registration was rejected by administration. Please check your license and vehicle details.',
+        message_bn: status === 'approved'
+          ? 'অভিনন্দন! আপনার রাইডার অ্যাকাউন্টটি অ্যাডমিন দ্বারা সফলভাবে অনুমোদিত হয়েছে। এখন আপনি অনলাইন হতে পারেন এবং ডেলিভারি অর্ডার নিতে পারেন।'
+          : 'আপনার ডেলিভারি পার্টনার আবেদনটি বাতিল করা হয়েছে। তথ্যের অসঙ্গতি সংশোধন করতে সাপোর্টে যোগাযোগ করুন।',
+        type: 'admin_alert'
+      });
+
+      const updatedRes = await db.query('SELECT * FROM delivery_partners WHERE id = ? LIMIT 1', [dpId]);
+      const updatedDp = formatAdminDeliveryPartnerRow(updatedRes.rows[0]);
+
+      return res.json({
+        success: true,
+        message: `Delivery partner "${dp.name}" status updated to ${status.toUpperCase()} by Admin`,
+        data: updatedDp
+      });
+    } catch (err: any) {
+      console.error('[Admin API] Update delivery partner status error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to update delivery partner status' });
+    }
+  }
+
+  // inMemoryStore fallback
+  const store = db.getStore();
   const dp = store.delivery_partners.find((d: any) => d.id === dpId);
 
   if (!dp) {
@@ -411,13 +930,89 @@ adminRouter.put('/delivery-partners/:id/status', (req: AuthenticatedRequest, res
     message: `Delivery partner "${dp.name}" status updated to ${status.toUpperCase()} by Admin`,
     data: dp
   });
-
 });
 
 // Admin: Toggle Block/Unblock for a delivery partner
-adminRouter.put('/delivery-partners/:id/block', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.put('/delivery-partners/:id/block', async (req: AuthenticatedRequest, res: Response) => {
   const dpId = Number(req.params.id);
+
+  if (db.isUsingMysql()) {
+    try {
+      const existingRes = await db.query('SELECT * FROM delivery_partners WHERE id = ? LIMIT 1', [dpId]);
+      if (!existingRes.rows[0]) {
+        return res.status(404).json({ success: false, message: 'Delivery partner not found' });
+      }
+
+      const dp = existingRes.rows[0];
+
+      if (req.user?.id && Number(dp.user_id) === Number(req.user.id)) {
+        return res.status(400).json({ success: false, message: 'You cannot block your own user account' });
+      }
+
+      const isCurrentlyBlocked = dp.status === 'blocked' || dp.is_active === 0;
+      const newStatus = isCurrentlyBlocked ? 'approved' : 'blocked';
+      const newIsActive = isCurrentlyBlocked ? 1 : 0;
+      const newOnline = isCurrentlyBlocked ? Number(dp.is_online || 0) : 0;
+      const newUserStatus = isCurrentlyBlocked ? 'active' : 'blocked';
+
+      const pool = db.getPool();
+      if (pool) {
+        const conn = await pool.getConnection();
+        try {
+          await conn.beginTransaction();
+          await conn.execute(
+            'UPDATE delivery_partners SET status = ?, is_active = ?, is_online = ? WHERE id = ?',
+            [newStatus, newIsActive, newOnline, dpId]
+          );
+          await conn.execute(
+            'UPDATE users SET status = ?, is_active = ? WHERE id = ?',
+            [newUserStatus, newIsActive, dp.user_id]
+          );
+          await conn.commit();
+        } catch (err) {
+          await conn.rollback();
+          throw err;
+        } finally {
+          conn.release();
+        }
+      } else {
+        await db.query(
+          'UPDATE delivery_partners SET status = ?, is_active = ?, is_online = ? WHERE id = ?',
+          [newStatus, newIsActive, dpId]
+        );
+        await db.query('UPDATE users SET status = ?, is_active = ? WHERE id = ?', [newUserStatus, newIsActive, dp.user_id]);
+      }
+
+      notificationService.createNotification({
+        userId: Number(dp.user_id),
+        role: 'delivery',
+        title: isCurrentlyBlocked ? 'Rider Account Unblocked' : 'Rider Account Blocked',
+        title_bn: isCurrentlyBlocked ? 'রাইডার আনব্লক করা হয়েছে' : 'রাইডার সাময়িক স্থগিত (Blocked)',
+        message: isCurrentlyBlocked
+          ? 'Your rider account has been unblocked by admin. You can now go online to accept deliveries.'
+          : 'Your delivery partner account has been blocked by administration. Please contact support.',
+        message_bn: isCurrentlyBlocked
+          ? 'আপনার রাইডার অ্যাকাউন্টটি আনব্লক করা হয়েছে। এখন আপনি ডেলিভারির জন্য অনলাইন হতে পারেন।'
+          : 'প্রশাসনিক কারণে আপনার রাইডার অ্যাকাউন্ট স্থগিত করা হয়েছে। সাপোর্টে যোগাযোগ করুন।',
+        type: 'admin_alert'
+      });
+
+      const updatedRes = await db.query('SELECT * FROM delivery_partners WHERE id = ? LIMIT 1', [dpId]);
+      const updatedDp = formatAdminDeliveryPartnerRow(updatedRes.rows[0]);
+
+      return res.json({
+        success: true,
+        message: `Delivery Rider "${dp.name}" has been ${isCurrentlyBlocked ? 'UNBLOCKED (Active)' : 'BLOCKED'}`,
+        data: updatedDp
+      });
+    } catch (err: any) {
+      console.error('[Admin API] Block delivery partner error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to toggle delivery partner block status' });
+    }
+  }
+
+  // inMemoryStore fallback
+  const store = db.getStore();
   const dp = store.delivery_partners.find((d: any) => d.id === dpId);
 
   if (!dp) {
@@ -601,7 +1196,49 @@ adminRouter.put('/service-areas/:id/toggle-status', (req: AuthenticatedRequest, 
 });
 
 // Admin: Get all customers with COD status and order count
-adminRouter.get('/customers', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/customers', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    try {
+      const custRes = await db.query(
+        `SELECT u.*, COUNT(o.id) as total_orders
+         FROM users u
+         LEFT JOIN orders o ON o.customer_id = u.id
+         WHERE u.role = 'customer'
+         GROUP BY u.id
+         ORDER BY u.id DESC`
+      );
+
+      const addrRes = await db.query(
+        `SELECT user_id, address_line, landmark FROM addresses WHERE is_default = 1`
+      );
+      const addrMap = new Map<number, string>();
+      for (const a of addrRes.rows) {
+        const str = `${a.address_line}${a.landmark ? ` (${a.landmark})` : ''}`;
+        addrMap.set(Number(a.user_id), str);
+      }
+
+      const settingsRes = await db.query("SELECT setting_value FROM platform_settings WHERE setting_key = 'global_cod_enabled' LIMIT 1");
+      const globalCodEnabled = settingsRes.rows[0] ? Number(settingsRes.rows[0].setting_value) : 0;
+
+      const customers = custRes.rows.map((c: any) => {
+        const addrStr = addrMap.get(Number(c.id));
+        return formatAdminCustomerRow(c, Number(c.total_orders || 0), addrStr);
+      });
+
+      return res.json({
+        success: true,
+        data: {
+          customers,
+          global_cod_enabled: globalCodEnabled
+        }
+      });
+    } catch (err: any) {
+      console.error('[Admin API] Get customers error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to fetch customers listing' });
+    }
+  }
+
+  // inMemoryStore fallback
   const store = db.getStore();
   const customers = store.users.filter((u: any) => u.role === 'customer').map((c: any) => {
     const userOrders = store.orders.filter((o: any) => o.customer_id === c.id);
@@ -738,9 +1375,58 @@ adminRouter.put('/customers/:id/cod', (req: AuthenticatedRequest, res: Response)
 });
 
 // Admin: Toggle Block/Unblock for a customer
-adminRouter.put('/customers/:id/block', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.put('/customers/:id/block', async (req: AuthenticatedRequest, res: Response) => {
   const customerId = Number(req.params.id);
+
+  if (db.isUsingMysql()) {
+    try {
+      const custRes = await db.query("SELECT * FROM users WHERE id = ? AND role = 'customer' LIMIT 1", [customerId]);
+      if (!custRes.rows[0]) {
+        return res.status(404).json({ success: false, message: 'Customer not found' });
+      }
+
+      const customer = custRes.rows[0];
+
+      if (req.user?.id && Number(customer.id) === Number(req.user.id)) {
+        return res.status(400).json({ success: false, message: 'You cannot block your own user account' });
+      }
+
+      const isCurrentlyBlocked = customer.is_active === 0 || customer.status === 'blocked';
+      const newIsActive = isCurrentlyBlocked ? 1 : 0;
+      const newStatus = isCurrentlyBlocked ? 'active' : 'blocked';
+
+      await db.query('UPDATE users SET is_active = ?, status = ? WHERE id = ?', [newIsActive, newStatus, customerId]);
+
+      notificationService.createNotification({
+        userId: Number(customer.id),
+        role: 'customer',
+        title: isCurrentlyBlocked ? 'Account Re-activated' : 'Account Suspended',
+        title_bn: isCurrentlyBlocked ? 'অ্যাকাউন্ট আনব্লক করা হয়েছে' : 'অ্যাকাউন্ট স্থগিত করা হয়েছে (Blocked)',
+        message: isCurrentlyBlocked
+          ? 'Your account has been unblocked by admin. You can now browse restaurants and place orders.'
+          : 'Your account has been temporarily blocked by administration. Please contact support.',
+        message_bn: isCurrentlyBlocked
+          ? 'আপনার অ্যাকাউন্টটি আনব্লক করা হয়েছে। এখন আপনি খাবার অর্ডার করতে পারবেন।'
+          : 'প্রশাসনিক কারণে আপনার অ্যাকাউন্ট স্থগিত করা হয়েছে। সাপোর্টে যোগাযোগ করুন।',
+        type: 'admin_alert'
+      });
+
+      const updatedRes = await db.query('SELECT * FROM users WHERE id = ? LIMIT 1', [customerId]);
+      const updatedCustomer = formatAdminCustomerRow(updatedRes.rows[0], 0);
+
+      return res.json({
+        success: true,
+        message: `Customer "${customer.name}" has been ${isCurrentlyBlocked ? 'UNBLOCKED (Active)' : 'BLOCKED'}`,
+        data: updatedCustomer
+      });
+    } catch (err: any) {
+      console.error('[Admin API] Block customer error:', err.message);
+      return res.status(500).json({ success: false, message: 'Failed to toggle customer block status' });
+    }
+  }
+
+  // inMemoryStore fallback
+  const store = db.getStore();
   const customer = store.users.find((u: any) => u.id === customerId && u.role === 'customer');
 
   if (!customer) {
@@ -811,14 +1497,42 @@ adminRouter.post('/customers/:id/message', (req: AuthenticatedRequest, res: Resp
   });
 });
 
+// Helper functions for platform settings in MySQL
+async function getPlatformSettingsFromMysql() {
+  const [rows]: any = await db.query('SELECT setting_key, setting_value FROM platform_settings');
+  const map: Record<string, string> = {};
+  for (const r of (rows || [])) {
+    map[r.setting_key] = r.setting_value;
+  }
+  return map;
+}
+
+async function setPlatformSettingInMysql(key: string, value: string, description?: string) {
+  await db.query(
+    `INSERT INTO platform_settings (setting_key, setting_value, description)
+     VALUES (?, ?, ?)
+     ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), description = COALESCE(VALUES(description), description)`,
+    [key, String(value), description || null]
+  );
+}
+
 // Admin: Toggle global platform COD status
-
-adminRouter.put('/settings/cod', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.put('/settings/cod', async (req: AuthenticatedRequest, res: Response) => {
   const { global_cod_enabled } = req.body;
+  const isCodEnabled = global_cod_enabled ? 1 : 0;
 
+  if (db.isUsingMysql()) {
+    await setPlatformSettingInMysql('global_cod_enabled', String(isCodEnabled), 'Global Cash on Delivery Status');
+    return res.json({
+      success: true,
+      message: `Global COD status set to ${isCodEnabled ? 'ENABLED for all' : 'DISABLED (Whitelisted customers only)'}`,
+      data: { global_cod_enabled: isCodEnabled }
+    });
+  }
+
+  const store = db.getStore();
   if (!store.settings) store.settings = {};
-  store.settings.global_cod_enabled = global_cod_enabled ? 1 : 0;
+  store.settings.global_cod_enabled = isCodEnabled;
 
   return res.json({
     success: true,
@@ -828,7 +1542,23 @@ adminRouter.put('/settings/cod', (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Admin: Get platform settings (commissions, per-km delivery fare, COD)
-adminRouter.get('/settings', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/settings', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    const map = await getPlatformSettingsFromMysql();
+    return res.json({
+      success: true,
+      data: {
+        global_cod_enabled: map.global_cod_enabled !== undefined ? Number(map.global_cod_enabled) : 0,
+        restaurant_commission_percent: Number(map.restaurant_commission_percent ?? 15.0),
+        delivery_partner_commission_percent: Number(map.delivery_partner_commission_percent ?? 10.0),
+        delivery_base_fare: Number(map.delivery_base_fare ?? 25.0),
+        delivery_base_distance_km: Number(map.delivery_base_distance_km ?? 2.0),
+        delivery_per_km_rate: Number(map.delivery_per_km_rate ?? 10.0),
+        min_delivery_fare: Number(map.min_delivery_fare ?? 20.0)
+      }
+    });
+  }
+
   const store = db.getStore();
   if (!store.settings) store.settings = {};
   return res.json({
@@ -846,10 +1576,7 @@ adminRouter.get('/settings', (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Admin: Update platform commissions and delivery per-km rates
-adminRouter.put('/settings/rates', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
-  if (!store.settings) store.settings = {};
-
+adminRouter.put('/settings/rates', async (req: AuthenticatedRequest, res: Response) => {
   const {
     restaurant_commission_percent,
     delivery_partner_commission_percent,
@@ -858,6 +1585,72 @@ adminRouter.put('/settings/rates', (req: AuthenticatedRequest, res: Response) =>
     delivery_per_km_rate,
     min_delivery_fare
   } = req.body;
+
+  if (db.isUsingMysql()) {
+    const map = await getPlatformSettingsFromMysql();
+    let restComm = Number(map.restaurant_commission_percent ?? 15.0);
+    let dpComm = Number(map.delivery_partner_commission_percent ?? 10.0);
+    let baseFare = Number(map.delivery_base_fare ?? 25.0);
+    let baseDist = Number(map.delivery_base_distance_km ?? 2.0);
+    let perKm = Number(map.delivery_per_km_rate ?? 10.0);
+    let minFare = Number(map.min_delivery_fare ?? 20.0);
+
+    if (restaurant_commission_percent !== undefined) {
+      restComm = Math.max(0, Math.min(100, Number(restaurant_commission_percent)));
+      await setPlatformSettingInMysql('restaurant_commission_percent', String(restComm));
+    }
+    if (delivery_partner_commission_percent !== undefined) {
+      dpComm = Math.max(0, Math.min(100, Number(delivery_partner_commission_percent)));
+      await setPlatformSettingInMysql('delivery_partner_commission_percent', String(dpComm));
+    }
+    if (delivery_base_fare !== undefined) {
+      baseFare = Math.max(0, Number(delivery_base_fare));
+      await setPlatformSettingInMysql('delivery_base_fare', String(baseFare));
+    }
+    if (delivery_base_distance_km !== undefined) {
+      baseDist = Math.max(0.5, Number(delivery_base_distance_km));
+      await setPlatformSettingInMysql('delivery_base_distance_km', String(baseDist));
+    }
+    if (delivery_per_km_rate !== undefined) {
+      perKm = Math.max(0, Number(delivery_per_km_rate));
+      await setPlatformSettingInMysql('delivery_per_km_rate', String(perKm));
+    }
+    if (min_delivery_fare !== undefined) {
+      minFare = Math.max(0, Number(min_delivery_fare));
+      await setPlatformSettingInMysql('min_delivery_fare', String(minFare));
+    }
+
+    // Synchronize to primary service area in MySQL
+    if (delivery_base_fare !== undefined || delivery_per_km_rate !== undefined) {
+      const [areas]: any = await db.query('SELECT id FROM service_areas ORDER BY id ASC LIMIT 1');
+      if (areas[0]) {
+        await db.query(
+          'UPDATE service_areas SET min_delivery_charge = ?, per_km_charge = ? WHERE id = ?',
+          [baseFare, perKm, areas[0].id]
+        );
+      }
+    }
+
+    const updatedSettings = {
+      global_cod_enabled: map.global_cod_enabled !== undefined ? Number(map.global_cod_enabled) : 0,
+      restaurant_commission_percent: restComm,
+      delivery_partner_commission_percent: dpComm,
+      delivery_base_fare: baseFare,
+      delivery_base_distance_km: baseDist,
+      delivery_per_km_rate: perKm,
+      min_delivery_fare: minFare
+    };
+
+    return res.json({
+      success: true,
+      message: 'Platform commissions and per-km fare rates updated successfully (কমিশন ও প্রতি কিমি রেট আপডেট হয়েছে)',
+      data: updatedSettings
+    });
+  }
+
+  // Memory fallback
+  const store = db.getStore();
+  if (!store.settings) store.settings = {};
 
   if (restaurant_commission_percent !== undefined) {
     store.settings.restaurant_commission_percent = Math.max(0, Math.min(100, Number(restaurant_commission_percent)));
@@ -892,35 +1685,51 @@ adminRouter.put('/settings/rates', (req: AuthenticatedRequest, res: Response) =>
 });
 
 // Admin: Get all promotions and platform charge discount settings
-adminRouter.get('/promotions', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/promotions', async (req: AuthenticatedRequest, res: Response) => {
+  const defaultPromotions = {
+    restaurant_discount_enabled: 1,
+    restaurant_discount_type: 'percent_off_commission',
+    restaurant_discount_value: 50.0,
+    restaurant_discount_title: 'Festival Partner Offer: 50% Off Platform Fee',
+    restaurant_discount_title_bn: 'রেস্তোরাঁ উৎসব অফার: প্ল্যাটফর্ম ফি-তে ৫০% বিশেষ ছাড়!',
+    restaurant_discount_note: 'All restaurant partners enjoy 50% discount on standard commission rates.',
+
+    partner_discount_enabled: 1,
+    partner_discount_type: 'zero_fee',
+    partner_discount_value: 100.0,
+    partner_bonus_per_order: 5.0,
+    partner_discount_title: 'Rider Super Bonus: 0% Platform Deduction + ₹5 Extra Payout',
+    partner_discount_title_bn: 'রাইডার ধামাকা বোনাস: ০% প্ল্যাটফর্ম কর্তন ও প্রতি ডেলিভারিতে অতিরিক্ত ₹৫ ইনসেনটিভ',
+    partner_discount_note: 'Riders retain 100% of delivery fees with zero platform deduction and receive extra bonus.',
+
+    customer_delivery_discount_enabled: 1,
+    customer_delivery_discount_type: 'free_delivery_above',
+    customer_delivery_discount_value: 100.0,
+    customer_min_order_for_free_delivery: 199.0,
+    customer_flat_delivery_discount: 10.0,
+    customer_first_order_free_delivery: 1,
+    customer_promo_banner_enabled: 1,
+    customer_promo_banner_text: '🎉 বিশেষ অফার: ₹১৯৯ টাকার বেশি অর্ডারে সম্পূর্ণ ফ্রি ডেলিভারি!',
+    customer_promo_banner_text_en: '🎉 Limited Time Offer: FREE Delivery on all food orders above ₹199!'
+  };
+
+  if (db.isUsingMysql()) {
+    const map = await getPlatformSettingsFromMysql();
+    let promos = defaultPromotions;
+    if (map.promotions_config) {
+      try {
+        promos = { ...defaultPromotions, ...JSON.parse(map.promotions_config) };
+      } catch {}
+    }
+    return res.json({
+      success: true,
+      data: promos
+    });
+  }
+
   const store = db.getStore();
   if (!store.promotions) {
-    store.promotions = {
-      restaurant_discount_enabled: 1,
-      restaurant_discount_type: 'percent_off_commission',
-      restaurant_discount_value: 50.0,
-      restaurant_discount_title: 'Festival Partner Offer: 50% Off Platform Fee',
-      restaurant_discount_title_bn: 'রেস্তোরাঁ উৎসব অফার: প্ল্যাটফর্ম ফি-তে ৫০% বিশেষ ছাড়!',
-      restaurant_discount_note: 'All restaurant partners enjoy 50% discount on standard commission rates.',
-
-      partner_discount_enabled: 1,
-      partner_discount_type: 'zero_fee',
-      partner_discount_value: 100.0,
-      partner_bonus_per_order: 5.0,
-      partner_discount_title: 'Rider Super Bonus: 0% Platform Deduction + ₹5 Extra Payout',
-      partner_discount_title_bn: 'রাইডার ধামাকা বোনাস: ০% প্ল্যাটফর্ম কর্তন ও প্রতি ডেলিভারিতে অতিরিক্ত ₹৫ ইনসেনটিভ',
-      partner_discount_note: 'Riders retain 100% of delivery fees with zero platform deduction and receive extra bonus.',
-
-      customer_delivery_discount_enabled: 1,
-      customer_delivery_discount_type: 'free_delivery_above',
-      customer_delivery_discount_value: 100.0,
-      customer_min_order_for_free_delivery: 199.0,
-      customer_flat_delivery_discount: 10.0,
-      customer_first_order_free_delivery: 1,
-      customer_promo_banner_enabled: 1,
-      customer_promo_banner_text: '🎉 বিশেষ অফার: ₹১৯৯ টাকার বেশি অর্ডারে সম্পূর্ণ ফ্রি ডেলিভারি!',
-      customer_promo_banner_text_en: '🎉 Limited Time Offer: FREE Delivery on all food orders above ₹199!'
-    };
+    store.promotions = defaultPromotions;
   }
 
   return res.json({
@@ -930,9 +1739,33 @@ adminRouter.get('/promotions', (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Admin: Update promotions and discount settings
-adminRouter.put('/promotions', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
-  if (!store.promotions) store.promotions = {};
+adminRouter.put('/promotions', async (req: AuthenticatedRequest, res: Response) => {
+  const defaultPromotions = {
+    restaurant_discount_enabled: 1,
+    restaurant_discount_type: 'percent_off_commission',
+    restaurant_discount_value: 50.0,
+    restaurant_discount_title: 'Festival Partner Offer: 50% Off Platform Fee',
+    restaurant_discount_title_bn: 'রেস্তোরাঁ উৎসব অফার: প্ল্যাটফর্ম ফি-তে ৫০% বিশেষ ছাড়!',
+    restaurant_discount_note: 'All restaurant partners enjoy 50% discount on standard commission rates.',
+
+    partner_discount_enabled: 1,
+    partner_discount_type: 'zero_fee',
+    partner_discount_value: 100.0,
+    partner_bonus_per_order: 5.0,
+    partner_discount_title: 'Rider Super Bonus: 0% Platform Deduction + ₹5 Extra Payout',
+    partner_discount_title_bn: 'রাইডার ধামাকা বোনাস: ০% প্ল্যাটফর্ম কর্তন ও প্রতি ডেলিভারিতে অতিরিক্ত ₹৫ ইনসেনটিভ',
+    partner_discount_note: 'Riders retain 100% of delivery fees with zero platform deduction and receive extra bonus.',
+
+    customer_delivery_discount_enabled: 1,
+    customer_delivery_discount_type: 'free_delivery_above',
+    customer_delivery_discount_value: 100.0,
+    customer_min_order_for_free_delivery: 199.0,
+    customer_flat_delivery_discount: 10.0,
+    customer_first_order_free_delivery: 1,
+    customer_promo_banner_enabled: 1,
+    customer_promo_banner_text: '🎉 বিশেষ অফার: ₹১৯৯ টাকার বেশি অর্ডারে সম্পূর্ণ ফ্রি ডেলিভারি!',
+    customer_promo_banner_text_en: '🎉 Limited Time Offer: FREE Delivery on all food orders above ₹199!'
+  };
 
   const {
     restaurant_discount_enabled,
@@ -961,79 +1794,113 @@ adminRouter.put('/promotions', (req: AuthenticatedRequest, res: Response) => {
     customer_promo_banner_text_en
   } = req.body;
 
-  // 1. Restaurant platform charge discount
-  if (restaurant_discount_enabled !== undefined) {
-    store.promotions.restaurant_discount_enabled = restaurant_discount_enabled ? 1 : 0;
-  }
-  if (restaurant_discount_type !== undefined) {
-    store.promotions.restaurant_discount_type = restaurant_discount_type;
-  }
-  if (restaurant_discount_value !== undefined) {
-    store.promotions.restaurant_discount_value = Math.max(0, Math.min(100, Number(restaurant_discount_value)));
-  }
-  if (restaurant_discount_title !== undefined) {
-    store.promotions.restaurant_discount_title = String(restaurant_discount_title);
-  }
-  if (restaurant_discount_title_bn !== undefined) {
-    store.promotions.restaurant_discount_title_bn = String(restaurant_discount_title_bn);
-  }
-  if (restaurant_discount_note !== undefined) {
-    store.promotions.restaurant_discount_note = String(restaurant_discount_note);
+  if (db.isUsingMysql()) {
+    const map = await getPlatformSettingsFromMysql();
+    let currentPromos = defaultPromotions;
+    if (map.promotions_config) {
+      try { currentPromos = { ...defaultPromotions, ...JSON.parse(map.promotions_config) }; } catch {}
+    }
+
+    const updated = { ...currentPromos };
+
+    if (restaurant_discount_enabled !== undefined) updated.restaurant_discount_enabled = restaurant_discount_enabled ? 1 : 0;
+    if (restaurant_discount_type !== undefined) updated.restaurant_discount_type = restaurant_discount_type;
+    if (restaurant_discount_value !== undefined) updated.restaurant_discount_value = Math.max(0, Math.min(100, Number(restaurant_discount_value)));
+    if (restaurant_discount_title !== undefined) updated.restaurant_discount_title = String(restaurant_discount_title);
+    if (restaurant_discount_title_bn !== undefined) updated.restaurant_discount_title_bn = String(restaurant_discount_title_bn);
+    if (restaurant_discount_note !== undefined) updated.restaurant_discount_note = String(restaurant_discount_note);
+
+    if (partner_discount_enabled !== undefined) updated.partner_discount_enabled = partner_discount_enabled ? 1 : 0;
+    if (partner_discount_type !== undefined) updated.partner_discount_type = partner_discount_type;
+    if (partner_discount_value !== undefined) updated.partner_discount_value = Math.max(0, Math.min(100, Number(partner_discount_value)));
+    if (partner_bonus_per_order !== undefined) updated.partner_bonus_per_order = Math.max(0, Number(partner_bonus_per_order));
+    if (partner_discount_title !== undefined) updated.partner_discount_title = String(partner_discount_title);
+    if (partner_discount_title_bn !== undefined) updated.partner_discount_title_bn = String(partner_discount_title_bn);
+    if (partner_discount_note !== undefined) updated.partner_discount_note = String(partner_discount_note);
+
+    if (customer_delivery_discount_enabled !== undefined) updated.customer_delivery_discount_enabled = customer_delivery_discount_enabled ? 1 : 0;
+    if (customer_delivery_discount_type !== undefined) updated.customer_delivery_discount_type = customer_delivery_discount_type;
+    if (customer_delivery_discount_value !== undefined) updated.customer_delivery_discount_value = Math.max(0, Math.min(100, Number(customer_delivery_discount_value)));
+    if (customer_min_order_for_free_delivery !== undefined) updated.customer_min_order_for_free_delivery = Math.max(0, Number(customer_min_order_for_free_delivery));
+    if (customer_flat_delivery_discount !== undefined) updated.customer_flat_delivery_discount = Math.max(0, Number(customer_flat_delivery_discount));
+    if (customer_first_order_free_delivery !== undefined) updated.customer_first_order_free_delivery = customer_first_order_free_delivery ? 1 : 0;
+    if (customer_promo_banner_enabled !== undefined) updated.customer_promo_banner_enabled = customer_promo_banner_enabled ? 1 : 0;
+    if (customer_promo_banner_text !== undefined) updated.customer_promo_banner_text = String(customer_promo_banner_text);
+    if (customer_promo_banner_text_en !== undefined) updated.customer_promo_banner_text_en = String(customer_promo_banner_text_en);
+
+    await setPlatformSettingInMysql('promotions_config', JSON.stringify(updated), 'Dynamic Promotions Configuration');
+
+    // Broadcast system notifications to restaurants and delivery partners
+    if (updated.restaurant_discount_enabled) {
+      const [rests]: any = await db.query('SELECT user_id FROM restaurants WHERE is_active = 1 AND status = "approved"');
+      for (const r of rests) {
+        if (r.user_id) {
+          await notificationService.createNotification({
+            userId: r.user_id,
+            role: 'restaurant',
+            title: updated.restaurant_discount_title || 'Platform Fee Discount Offer Active!',
+            title_bn: updated.restaurant_discount_title_bn || 'প্ল্যাটফর্ম ফি ছাড় অফার সক্রিয়!',
+            message: `Admin has updated the promotional platform fee discount for all restaurants.`,
+            message_bn: `রেস্তোরাঁর জন্য প্ল্যাটফর্ম চার্জের বিশেষ ছাড়ের অফার চালু করা হয়েছে।`,
+            type: 'admin_alert'
+          });
+        }
+      }
+    }
+
+    if (updated.partner_discount_enabled) {
+      const [riders]: any = await db.query('SELECT user_id FROM delivery_partners WHERE status = "approved"');
+      for (const dp of riders) {
+        if (dp.user_id) {
+          await notificationService.createNotification({
+            userId: dp.user_id,
+            role: 'delivery',
+            title: updated.partner_discount_title || 'Rider Incentive & Zero Platform Fee Active!',
+            title_bn: updated.partner_discount_title_bn || 'রাইডার স্পেশাল ইনসেনটিভ ও প্ল্যাটফর্ম ছাড় সক্রিয়!',
+            message: `Enjoy reduced platform deductions + bonus per delivery!`,
+            message_bn: `০% বা কম প্ল্যাটফর্ম ফি এবং প্রতি ডেলিভারিতে অতিরিক্ত বোনাস চালু হয়েছে।`,
+            type: 'admin_alert'
+          });
+        }
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: 'Offers and discount settings successfully updated! (অফার ও ডিসকাউন্ট সফলভাবে আপডেট হয়েছে)',
+      data: updated
+    });
   }
 
-  // 2. Delivery partner platform charge discount & bonus
-  if (partner_discount_enabled !== undefined) {
-    store.promotions.partner_discount_enabled = partner_discount_enabled ? 1 : 0;
-  }
-  if (partner_discount_type !== undefined) {
-    store.promotions.partner_discount_type = partner_discount_type;
-  }
-  if (partner_discount_value !== undefined) {
-    store.promotions.partner_discount_value = Math.max(0, Math.min(100, Number(partner_discount_value)));
-  }
-  if (partner_bonus_per_order !== undefined) {
-    store.promotions.partner_bonus_per_order = Math.max(0, Number(partner_bonus_per_order));
-  }
-  if (partner_discount_title !== undefined) {
-    store.promotions.partner_discount_title = String(partner_discount_title);
-  }
-  if (partner_discount_title_bn !== undefined) {
-    store.promotions.partner_discount_title_bn = String(partner_discount_title_bn);
-  }
-  if (partner_discount_note !== undefined) {
-    store.promotions.partner_discount_note = String(partner_discount_note);
-  }
+  // Memory fallback
+  const store = db.getStore();
+  if (!store.promotions) store.promotions = {};
 
-  // 3. Customer delivery charge discount & banner
-  if (customer_delivery_discount_enabled !== undefined) {
-    store.promotions.customer_delivery_discount_enabled = customer_delivery_discount_enabled ? 1 : 0;
-  }
-  if (customer_delivery_discount_type !== undefined) {
-    store.promotions.customer_delivery_discount_type = customer_delivery_discount_type;
-  }
-  if (customer_delivery_discount_value !== undefined) {
-    store.promotions.customer_delivery_discount_value = Math.max(0, Math.min(100, Number(customer_delivery_discount_value)));
-  }
-  if (customer_min_order_for_free_delivery !== undefined) {
-    store.promotions.customer_min_order_for_free_delivery = Math.max(0, Number(customer_min_order_for_free_delivery));
-  }
-  if (customer_flat_delivery_discount !== undefined) {
-    store.promotions.customer_flat_delivery_discount = Math.max(0, Number(customer_flat_delivery_discount));
-  }
-  if (customer_first_order_free_delivery !== undefined) {
-    store.promotions.customer_first_order_free_delivery = customer_first_order_free_delivery ? 1 : 0;
-  }
-  if (customer_promo_banner_enabled !== undefined) {
-    store.promotions.customer_promo_banner_enabled = customer_promo_banner_enabled ? 1 : 0;
-  }
-  if (customer_promo_banner_text !== undefined) {
-    store.promotions.customer_promo_banner_text = String(customer_promo_banner_text);
-  }
-  if (customer_promo_banner_text_en !== undefined) {
-    store.promotions.customer_promo_banner_text_en = String(customer_promo_banner_text_en);
-  }
+  if (restaurant_discount_enabled !== undefined) store.promotions.restaurant_discount_enabled = restaurant_discount_enabled ? 1 : 0;
+  if (restaurant_discount_type !== undefined) store.promotions.restaurant_discount_type = restaurant_discount_type;
+  if (restaurant_discount_value !== undefined) store.promotions.restaurant_discount_value = Math.max(0, Math.min(100, Number(restaurant_discount_value)));
+  if (restaurant_discount_title !== undefined) store.promotions.restaurant_discount_title = String(restaurant_discount_title);
+  if (restaurant_discount_title_bn !== undefined) store.promotions.restaurant_discount_title_bn = String(restaurant_discount_title_bn);
+  if (restaurant_discount_note !== undefined) store.promotions.restaurant_discount_note = String(restaurant_discount_note);
 
-  // Broadcast system notifications to restaurants and delivery partners
+  if (partner_discount_enabled !== undefined) store.promotions.partner_discount_enabled = partner_discount_enabled ? 1 : 0;
+  if (partner_discount_type !== undefined) store.promotions.partner_discount_type = partner_discount_type;
+  if (partner_discount_value !== undefined) store.promotions.partner_discount_value = Math.max(0, Math.min(100, Number(partner_discount_value)));
+  if (partner_bonus_per_order !== undefined) store.promotions.partner_bonus_per_order = Math.max(0, Number(partner_bonus_per_order));
+  if (partner_discount_title !== undefined) store.promotions.partner_discount_title = String(partner_discount_title);
+  if (partner_discount_title_bn !== undefined) store.promotions.partner_discount_title_bn = String(partner_discount_title_bn);
+  if (partner_discount_note !== undefined) store.promotions.partner_discount_note = String(partner_discount_note);
+
+  if (customer_delivery_discount_enabled !== undefined) store.promotions.customer_delivery_discount_enabled = customer_delivery_discount_enabled ? 1 : 0;
+  if (customer_delivery_discount_type !== undefined) store.promotions.customer_delivery_discount_type = customer_delivery_discount_type;
+  if (customer_delivery_discount_value !== undefined) store.promotions.customer_delivery_discount_value = Math.max(0, Math.min(100, Number(customer_delivery_discount_value)));
+  if (customer_min_order_for_free_delivery !== undefined) store.promotions.customer_min_order_for_free_delivery = Math.max(0, Number(customer_min_order_for_free_delivery));
+  if (customer_flat_delivery_discount !== undefined) store.promotions.customer_flat_delivery_discount = Math.max(0, Number(customer_flat_delivery_discount));
+  if (customer_first_order_free_delivery !== undefined) store.promotions.customer_first_order_free_delivery = customer_first_order_free_delivery ? 1 : 0;
+  if (customer_promo_banner_enabled !== undefined) store.promotions.customer_promo_banner_enabled = customer_promo_banner_enabled ? 1 : 0;
+  if (customer_promo_banner_text !== undefined) store.promotions.customer_promo_banner_text = String(customer_promo_banner_text);
+  if (customer_promo_banner_text_en !== undefined) store.promotions.customer_promo_banner_text_en = String(customer_promo_banner_text_en);
+
   if (store.promotions.restaurant_discount_enabled) {
     store.restaurants.forEach((r: any) => {
       notificationService.createNotification({
@@ -1069,13 +1936,54 @@ adminRouter.put('/promotions', (req: AuthenticatedRequest, res: Response) => {
   });
 });
 
-
 // Admin: Escrow Funds & Support Resolution Center
-adminRouter.get('/escrow', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/escrow', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    // Escrow metrics are now calculated on-the-fly without modifying order states
+    const [deliveredOrders]: any = await db.query(
+      "SELECT * FROM orders WHERE status = 'delivered' ORDER BY id DESC"
+    );
+
+    let holdingFunds = 0;
+    let maturedFunds = 0;
+    let settledFunds = 0;
+    let refundedFunds = 0;
+    let disputedOrdersCount = 0;
+
+    for (const o of deliveredOrders) {
+      const netAmount = Number(o.net_restaurant_amount || (Number(o.subtotal) * 0.85));
+      if (o.escrow_status === 'holding') {
+        holdingFunds += netAmount;
+      } else if (o.escrow_status === 'matured') {
+        maturedFunds += netAmount;
+      } else if (o.escrow_status === 'settled') {
+        settledFunds += netAmount;
+      } else if (o.escrow_status === 'refunded') {
+        refundedFunds += Number(o.refund_amount || o.grand_total);
+      } else if (o.escrow_status === 'disputed') {
+        disputedOrdersCount++;
+      }
+    }
+
+    return res.json({
+      success: true,
+      data: {
+        metrics: {
+          holdingFunds: Math.round(holdingFunds * 100) / 100,
+          maturedFunds: Math.round(maturedFunds * 100) / 100,
+          settledFunds: Math.round(settledFunds * 100) / 100,
+          refundedFunds: Math.round(refundedFunds * 100) / 100,
+          disputedOrdersCount,
+          totalDelivered: deliveredOrders.length
+        },
+        orders: deliveredOrders
+      }
+    });
+  }
+
   const store = db.getStore();
   const deliveredOrders = store.orders.filter((o: any) => o.status === 'delivered');
 
-  // Check auto-maturity for orders where 24 hours have passed and not refunded/disputed
   const nowTime = Date.now();
   for (const ord of deliveredOrders) {
     if (ord.escrow_status === 'holding' && ord.holding_until) {
@@ -1120,11 +2028,11 @@ adminRouter.get('/escrow', (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Admin: Manually settle escrow payment to restaurant (immediate release override)
-adminRouter.post('/escrow/:orderId/settle', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.post('/escrow/:orderId/settle', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const orderId = Number(req.params.orderId);
     const { note } = req.body;
-    const settled = orderService.settleOrderEscrow(orderId, req.user?.id, note);
+    const settled = await orderService.settleOrderEscrow(orderId, req.user?.id, note);
     return res.json({
       success: true,
       message: `Payment of ₹${settled.net_restaurant_amount} successfully released to ${settled.restaurant_name}`,
@@ -1136,14 +2044,14 @@ adminRouter.post('/escrow/:orderId/settle', (req: AuthenticatedRequest, res: Res
 });
 
 // Admin: Process full or partial refund to customer
-adminRouter.post('/escrow/:orderId/refund', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.post('/escrow/:orderId/refund', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const orderId = Number(req.params.orderId);
     const { reason, amount, refund_percentage, withhold_restaurant_pct, withhold_delivery_pct } = req.body;
     if (!reason) {
       return res.status(400).json({ success: false, message: 'Refund reason is required (রিফান্ডের কারণ আবশ্যক)' });
     }
-    const refunded = orderService.refundOrderPayment(orderId, req.user?.id, reason, amount, {
+    const refunded = await orderService.refundOrderPayment(orderId, req.user?.id, reason, amount, {
       refundPercentage: refund_percentage !== undefined ? Number(refund_percentage) : undefined,
       withholdRestaurantPct: withhold_restaurant_pct !== undefined ? Number(withhold_restaurant_pct) : undefined,
       withholdDeliveryPct: withhold_delivery_pct !== undefined ? Number(withhold_delivery_pct) : undefined
@@ -1159,11 +2067,11 @@ adminRouter.post('/escrow/:orderId/refund', (req: AuthenticatedRequest, res: Res
 });
 
 // Admin: Flag / Freeze order payment for dispute investigation
-adminRouter.post('/escrow/:orderId/dispute', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.post('/escrow/:orderId/dispute', async (req: AuthenticatedRequest, res: Response) => {
   try {
     const orderId = Number(req.params.orderId);
     const { reason } = req.body;
-    const disputed = orderService.disputeOrderPayment(orderId, req.user?.id, reason);
+    const disputed = await orderService.disputeOrderPayment(orderId, req.user?.id, reason);
     return res.json({
       success: true,
       message: `Order #${disputed.order_number} payment has been frozen under dispute review`,
@@ -1175,8 +2083,33 @@ adminRouter.post('/escrow/:orderId/dispute', (req: AuthenticatedRequest, res: Re
 });
 
 // Admin: Batch settle all matured 24h escrow orders
-adminRouter.post('/escrow/settle-all-matured', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.post('/escrow/settle-all-matured', async (req: AuthenticatedRequest, res: Response) => {
   try {
+    if (db.isUsingMysql()) {
+      await db.query(
+        "UPDATE orders SET escrow_status = 'matured' WHERE status = 'delivered' AND escrow_status = 'holding' AND holding_until IS NOT NULL AND holding_until <= NOW()"
+      );
+
+      const [maturedOrders]: any = await db.query(
+        "SELECT id FROM orders WHERE status = 'delivered' AND escrow_status = 'matured'"
+      );
+
+      const settledList: any[] = [];
+      for (const ord of maturedOrders) {
+        const settled = await orderService.settleOrderEscrow(ord.id, req.user?.id, 'Batch 24h maturity auto-release');
+        settledList.push(settled);
+      }
+
+      return res.json({
+        success: true,
+        message: `Successfully released ${settledList.length} matured payments to restaurants.`,
+        data: {
+          settledCount: settledList.length,
+          settledOrders: settledList
+        }
+      });
+    }
+
     const store = db.getStore();
     const nowTime = Date.now();
     const maturedOrders = store.orders.filter(
@@ -1188,7 +2121,7 @@ adminRouter.post('/escrow/settle-all-matured', (req: AuthenticatedRequest, res: 
 
     const settledList: any[] = [];
     for (const ord of maturedOrders) {
-      const settled = orderService.settleOrderEscrow(ord.id, req.user?.id, 'Batch 24h maturity auto-release');
+      const settled = await orderService.settleOrderEscrow(ord.id, req.user?.id, 'Batch 24h maturity auto-release');
       settledList.push(settled);
     }
 
@@ -1210,7 +2143,25 @@ adminRouter.post('/escrow/settle-all-matured', (req: AuthenticatedRequest, res: 
 // ==========================================
 
 // 1. Get all service areas with enriched restaurant & order counts
-adminRouter.get('/service-areas', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/service-areas', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    const [areas]: any = await db.query('SELECT * FROM service_areas ORDER BY name ASC');
+    const enriched = await Promise.all(areas.map(async (sa: any) => {
+      const [[restCount]]: any = await db.query('SELECT COUNT(*) as cnt FROM restaurants WHERE service_area_id = ?', [sa.id]);
+      const [[orderCount]]: any = await db.query('SELECT COUNT(*) as cnt FROM orders WHERE service_area_id = ?', [sa.id]);
+      const [points]: any = await db.query('SELECT latitude as lat, longitude as lng FROM service_area_points WHERE service_area_id = ? ORDER BY sequence_order ASC', [sa.id]);
+      return {
+        ...sa,
+        min_delivery_charge: Number(sa.min_delivery_charge),
+        per_km_charge: Number(sa.per_km_charge),
+        polygon: points,
+        restaurant_count: restCount.cnt,
+        order_count: orderCount.cnt
+      };
+    }));
+    return res.json({ success: true, data: enriched });
+  }
+
   const store = db.getStore();
   const areas = (store.service_areas || []).map((sa: any) => {
     const restaurantCount = (store.restaurants || []).filter((r: any) => r.service_area_id === sa.id).length;
@@ -1225,8 +2176,7 @@ adminRouter.get('/service-areas', (req: AuthenticatedRequest, res: Response) => 
 });
 
 // 2. Create new service area boundary
-adminRouter.post('/service-areas', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.post('/service-areas', async (req: AuthenticatedRequest, res: Response) => {
   const { name, name_bn, min_delivery_charge, per_km_charge, is_active, polygon } = req.body;
 
   if (!name || !name.trim()) {
@@ -1240,6 +2190,34 @@ adminRouter.post('/service-areas', (req: AuthenticatedRequest, res: Response) =>
     });
   }
 
+  if (db.isUsingMysql()) {
+    const pool = db.getPool();
+    if (!pool) return res.status(500).json({ success: false, message: 'DB error' });
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    try {
+      const [res]: any = await conn.execute(
+        'INSERT INTO service_areas (name, name_bn, min_delivery_charge, per_km_charge, is_active) VALUES (?, ?, ?, ?, ?)',
+        [name.trim(), (name_bn || name).trim(), Number(min_delivery_charge) || 25, Number(per_km_charge) || 8, is_active ? 1 : 0]
+      );
+      const areaId = res.insertId;
+      for (let i = 0; i < polygon.length; i++) {
+        await conn.execute(
+          'INSERT INTO service_area_points (service_area_id, latitude, longitude, sequence_order) VALUES (?, ?, ?, ?)',
+          [areaId, Number(polygon[i].lat), Number(polygon[i].lng), i]
+        );
+      }
+      await conn.commit();
+      conn.release();
+      return res.json({ success: true, message: 'Created', data: { id: areaId, name } });
+    } catch (err) {
+      await conn.rollback();
+      conn.release();
+      throw err;
+    }
+  }
+
+  const store = db.getStore();
   const nextId = (store.service_areas || []).reduce((max: number, a: any) => Math.max(max, a.id || 0), 0) + 1;
   const newArea = {
     id: nextId,
@@ -1265,17 +2243,32 @@ adminRouter.post('/service-areas', (req: AuthenticatedRequest, res: Response) =>
 });
 
 // 3. Update existing service area boundary
-adminRouter.put('/service-areas/:id', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.put('/service-areas/:id', async (req: AuthenticatedRequest, res: Response) => {
   const areaId = Number(req.params.id);
+  const { name, name_bn, min_delivery_charge, per_km_charge, is_active, polygon } = req.body;
+
+  if (db.isUsingMysql()) {
+    await db.query(
+      'UPDATE service_areas SET name = ?, name_bn = ?, min_delivery_charge = ?, per_km_charge = ?, is_active = ? WHERE id = ?',
+      [name.trim(), (name_bn || name).trim(), Number(min_delivery_charge) || 0, Number(per_km_charge) || 0, is_active ? 1 : 0, areaId]
+    );
+    if (polygon && Array.isArray(polygon)) {
+      await db.query('DELETE FROM service_area_points WHERE service_area_id = ?', [areaId]);
+      for (let i = 0; i < polygon.length; i++) {
+        await db.query('INSERT INTO service_area_points (service_area_id, latitude, longitude, sequence_order) VALUES (?, ?, ?, ?)',
+          [areaId, Number(polygon[i].lat), Number(polygon[i].lng), i]);
+      }
+    }
+    return res.json({ success: true, message: 'Updated' });
+  }
+
+  const store = db.getStore();
   if (!store.service_areas) store.service_areas = [];
   const area = store.service_areas.find((a: any) => Number(a.id) === areaId);
-
+  // ... memory fallback (unchanged logic)
   if (!area) {
     return res.status(404).json({ success: false, message: 'Service area not found (সার্ভিস এরিয়া খুঁজে পাওয়া যায়নি)' });
   }
-
-  const { name, name_bn, min_delivery_charge, per_km_charge, is_active, polygon } = req.body;
 
   if (name !== undefined && String(name).trim()) area.name = String(name).trim();
   if (name_bn !== undefined && String(name_bn).trim()) area.name_bn = String(name_bn).trim();
@@ -1322,9 +2315,34 @@ adminRouter.put('/service-areas/:id/toggle', (req: AuthenticatedRequest, res: Re
 });
 
 // 5. Delete service area
-adminRouter.delete('/service-areas/:id', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.delete('/service-areas/:id', async (req: AuthenticatedRequest, res: Response) => {
   const areaId = Number(req.params.id);
+
+  if (db.isUsingMysql()) {
+    const pool = db.getPool();
+    if (!pool) return res.status(500).json({ success: false, message: 'DB error' });
+    const conn = await pool.getConnection();
+    await conn.beginTransaction();
+    try {
+      // Reassign restaurants to first remaining area
+      const [remainingAreas]: any = await conn.execute('SELECT id FROM service_areas WHERE id != ? LIMIT 1', [areaId]);
+      if (remainingAreas.length > 0) {
+        await conn.execute('UPDATE restaurants SET service_area_id = ? WHERE service_area_id = ?', [remainingAreas[0].id, areaId]);
+      }
+      await conn.execute('DELETE FROM service_area_points WHERE service_area_id = ?', [areaId]);
+      await conn.execute('DELETE FROM service_areas WHERE id = ?', [areaId]);
+      await conn.commit();
+      conn.release();
+      return res.json({ success: true, message: 'Deleted' });
+    } catch (err) {
+      await conn.rollback();
+      conn.release();
+      throw err;
+    }
+  }
+
+  const store = db.getStore();
+  // ... memory fallback (unchanged logic)
   const index = (store.service_areas || []).findIndex((a: any) => a.id === areaId);
 
   if (index === -1) {
@@ -1386,7 +2404,12 @@ adminRouter.post('/service-areas/test-location', (req: AuthenticatedRequest, res
 // ==========================================
 
 // Get all categories
-adminRouter.get('/categories', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/categories', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    const [categories]: any = await db.query('SELECT * FROM food_categories ORDER BY sort_order ASC');
+    return res.json({ success: true, data: categories });
+  }
+
   const store = db.getStore();
   const categories = store.food_categories || [];
   return res.json({
@@ -1396,16 +2419,30 @@ adminRouter.get('/categories', (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Create a new category
-adminRouter.post('/categories', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
-  if (!store.food_categories) store.food_categories = [];
-
+adminRouter.post('/categories', async (req: AuthenticatedRequest, res: Response) => {
   const { name, name_bn, image_url, icon, description, sort_order, is_active } = req.body;
 
   if (!name || !name.trim()) {
     return res.status(400).json({ success: false, message: 'Category name is required (ক্যাটাগরির নাম আবশ্যক)' });
   }
 
+  if (db.isUsingMysql()) {
+    const [existing]: any = await db.query('SELECT id FROM food_categories WHERE LOWER(name) = LOWER(?)', [name.trim()]);
+    if (existing.length > 0) {
+      return res.status(400).json({ success: false, message: 'A category with this name already exists' });
+    }
+
+    const [dbRes]: any = await db.query(
+      'INSERT INTO food_categories (name, name_bn, image_url, sort_order, is_active) VALUES (?, ?, ?, ?, ?)',
+      [name.trim(), (name_bn || name).trim(), image_url || 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=400', Number(sort_order) || 0, is_active ? 1 : 0]
+    );
+    const newCatId = dbRes.insertId;
+    return res.status(201).json({ success: true, message: 'Category added', data: { id: newCatId, name } });
+  }
+
+  const store = db.getStore();
+  if (!store.food_categories) store.food_categories = [];
+  // ... memory fallback (unchanged logic)
   const existing = store.food_categories.find(
     (c: any) => c.name.toLowerCase().trim() === name.toLowerCase().trim()
   );
@@ -1436,16 +2473,24 @@ adminRouter.post('/categories', (req: AuthenticatedRequest, res: Response) => {
 });
 
 // Update an existing category
-adminRouter.put('/categories/:id', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.put('/categories/:id', async (req: AuthenticatedRequest, res: Response) => {
   const catId = Number(req.params.id);
-  const cat = (store.food_categories || []).find((c: any) => c.id === catId);
+  const { name, name_bn, image_url, icon, description, sort_order, is_active } = req.body;
 
+  if (db.isUsingMysql()) {
+    await db.query(
+      'UPDATE food_categories SET name = ?, name_bn = ?, image_url = ?, sort_order = ?, is_active = ? WHERE id = ?',
+      [name?.trim(), (name_bn || name)?.trim(), image_url, Number(sort_order), is_active ? 1 : 0, catId]
+    );
+    return res.json({ success: true, message: 'Updated' });
+  }
+
+  const store = db.getStore();
+  const cat = (store.food_categories || []).find((c: any) => c.id === catId);
+  // ... memory fallback (unchanged logic)
   if (!cat) {
     return res.status(404).json({ success: false, message: 'Category not found' });
   }
-
-  const { name, name_bn, image_url, icon, description, sort_order, is_active } = req.body;
 
   const oldName = cat.name;
   if (name) cat.name = name.trim();
@@ -1474,9 +2519,16 @@ adminRouter.put('/categories/:id', (req: AuthenticatedRequest, res: Response) =>
 });
 
 // Delete a category
-adminRouter.delete('/categories/:id', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
+adminRouter.delete('/categories/:id', async (req: AuthenticatedRequest, res: Response) => {
   const catId = Number(req.params.id);
+
+  if (db.isUsingMysql()) {
+    await db.query('DELETE FROM food_categories WHERE id = ?', [catId]);
+    return res.json({ success: true, message: 'Deleted' });
+  }
+
+  const store = db.getStore();
+  // ... memory fallback (unchanged logic)
   const index = (store.food_categories || []).findIndex((c: any) => c.id === catId);
 
   if (index === -1) {
@@ -1512,32 +2564,28 @@ adminRouter.get('/restaurant-rankings', (req: AuthenticatedRequest, res: Respons
 });
 
 // GET all location radius ranking rules
-adminRouter.get('/location-rankings', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.get('/location-rankings', async (req: AuthenticatedRequest, res: Response) => {
+  if (db.isUsingMysql()) {
+    const [rows]: any = await db.query('SELECT * FROM location_rankings');
+    const rankings = rows.map((r: any) => ({ ...r, rankings: JSON.parse(r.rankings_json || '[]') }));
+    return res.json({ success: true, data: rankings });
+  }
+
   const store = db.getStore();
   if (!store.location_rankings) store.location_rankings = [];
-
-  return res.json({
-    success: true,
-    data: store.location_rankings
-  });
+  return res.json({ success: true, data: store.location_rankings });
 });
 
 // CREATE or UPDATE a Location Radius Ranking Rule
-adminRouter.post('/location-rankings', (req: AuthenticatedRequest, res: Response) => {
-  const store = db.getStore();
-  if (!store.location_rankings) store.location_rankings = [];
-
+adminRouter.post('/location-rankings', async (req: AuthenticatedRequest, res: Response) => {
   const { id, name, name_bn, lat, lng, radius_km, is_active, rankings } = req.body;
 
   if (!name || !lat || !lng) {
-    return res.status(400).json({
-      success: false,
-      message: 'Location rule name and latitude/longitude center coordinates are required.'
-    });
+    return res.status(400).json({ success: false, message: 'Location rule name and latitude/longitude center coordinates are required.' });
   }
 
   // Strict Service Area Boundary Check for Ranking Rules
-  const matchedServiceArea = locationService.findServiceAreaForLocation({
+  const matchedServiceArea = await locationService.findServiceAreaForLocation({
     lat: Number(lat),
     lng: Number(lng)
   });
@@ -1551,13 +2599,29 @@ adminRouter.post('/location-rankings', (req: AuthenticatedRequest, res: Response
 
   const cleanRankings = Array.isArray(rankings)
     ? rankings
-        .map((r: any) => ({
-          restaurant_id: Number(r.restaurant_id),
-          rank: Number(r.rank)
-        }))
+        .map((r: any) => ({ restaurant_id: Number(r.restaurant_id), rank: Number(r.rank) }))
         .filter((r: any) => r.restaurant_id > 0 && r.rank >= 1 && r.rank <= 5)
     : [];
 
+  if (db.isUsingMysql()) {
+    if (id) {
+      await db.query(
+        'UPDATE location_rankings SET name = ?, name_bn = ?, lat = ?, lng = ?, radius_km = ?, is_active = ?, rankings_json = ? WHERE id = ?',
+        [name.trim(), (name_bn || name).trim(), Number(lat), Number(lng), Number(radius_km || 3.0), is_active ? 1 : 0, JSON.stringify(cleanRankings), id]
+      );
+      return res.json({ success: true, message: 'Updated' });
+    } else {
+      await db.query(
+        'INSERT INTO location_rankings (name, name_bn, lat, lng, radius_km, is_active, rankings_json) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [name.trim(), (name_bn || name).trim(), Number(lat), Number(lng), Number(radius_km || 3.0), 1, JSON.stringify(cleanRankings)]
+      );
+      return res.json({ success: true, message: 'Created' });
+    }
+  }
+
+  const store = db.getStore();
+  if (!store.location_rankings) store.location_rankings = [];
+  // ... memory fallback (unchanged logic)
   let rule: any = null;
   if (id) {
     const idx = store.location_rankings.findIndex((r: any) => r.id === Number(id));
@@ -1603,15 +2667,17 @@ adminRouter.post('/location-rankings', (req: AuthenticatedRequest, res: Response
 });
 
 // DELETE a Location Radius Ranking Rule
-adminRouter.delete('/location-rankings/:id', (req: AuthenticatedRequest, res: Response) => {
+adminRouter.delete('/location-rankings/:id', async (req: AuthenticatedRequest, res: Response) => {
+  const ruleId = Number(req.params.id);
+
+  if (db.isUsingMysql()) {
+    await db.query('DELETE FROM location_rankings WHERE id = ?', [ruleId]);
+    return res.json({ success: true, message: 'Deleted' });
+  }
+
   const store = db.getStore();
   if (!store.location_rankings) store.location_rankings = [];
-
-  const paramId = req.params.id;
-  const ruleId = Number(paramId);
-  const idx = store.location_rankings.findIndex(
-    (r: any) => Number(r.id) === ruleId || String(r.id) === String(paramId)
-  );
+  const idx = store.location_rankings.findIndex((r: any) => Number(r.id) === ruleId);
 
   if (idx === -1) {
     return res.status(404).json({ success: false, message: 'Location ranking rule not found' });
@@ -1649,6 +2715,13 @@ adminRouter.put('/location-rankings/:id/toggle-status', (req: AuthenticatedReque
 
 // Update or set location-wise restaurant rankings (Top 1..5)
 adminRouter.post('/restaurant-rankings', (req: AuthenticatedRequest, res: Response) => {
+  if (process.env.NODE_ENV === 'production') {
+    return res.status(503).json({
+      success: false,
+      message: 'Persistent restaurant rankings are not currently supported in production. Please migrate to MySQL schema first.'
+    });
+  }
+
   const store = db.getStore();
   if (!store.restaurant_rankings) store.restaurant_rankings = [];
 
